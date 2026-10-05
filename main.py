@@ -29,8 +29,8 @@ except Exception:
     filechooser = None
 
 # ===== НАСТРОЙКА: Project URL и anon public key из Supabase (Settings → API) =====
-SUPABASE_URL = 'https://XXXX.supabase.co'
-SUPABASE_KEY = 'ВСТАВЬТЕ_ANON_KEY'
+SUPABASE_URL = 'https://wogyusrdnccxahsjhjbq.supabase.co'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvZ3l1c3JkbmNjeGFoc2poamJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExODc4MDYsImV4cCI6MjEwNjc2MzgwNn0.wx-Z2zzNO32PAlG0yUzHKv8nb8ilnyVB98d7Wigss8g'
 # service_role ключ сюда вставлять НЕЛЬЗЯ: он даёт полный доступ к базе.
 # =================================================================================
 BASE = SUPABASE_URL.strip().rstrip('/')
