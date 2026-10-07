@@ -1,4 +1,5 @@
--- Железный круг, обновление базы. Выполните в SQL Editor ПОСЛЕ schema.sql (один раз).
+-- Железный круг, обновление базы. Выполните в SQL Editor ПОСЛЕ schema.sql.
+-- Скрипт можно запускать повторно: уже существующее он пересоздаёт, а не падает с ошибкой.
 
 -- 1. Новые поля профиля
 alter table profiles
@@ -15,6 +16,9 @@ create table if not exists form_posts (
   created_at timestamptz default now()
 );
 alter table form_posts enable row level security;
+drop policy if exists "form read" on form_posts;
+drop policy if exists "form insert own" on form_posts;
+drop policy if exists "form delete own" on form_posts;
 create policy "form read" on form_posts for select to authenticated using (true);
 create policy "form insert own" on form_posts for insert to authenticated with check (auth.uid() = user_id);
 create policy "form delete own" on form_posts for delete to authenticated using (auth.uid() = user_id);
