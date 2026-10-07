@@ -9,7 +9,8 @@ from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.text import LabelBase
 from kivy.core.window import Window
-from kivy.graphics import Color, Ellipse, Line, PopMatrix, PushMatrix, Rotate, RoundedRectangle, Triangle
+from kivy.graphics import (Color, Ellipse, Line, PopMatrix, PushMatrix, Rectangle, Rotate, RoundedRectangle,
+                           StencilPop, StencilPush, StencilUnUse, StencilUse, Triangle)
 from kivy.lang import Builder
 from kivy.metrics import dp
 from kivy.properties import BooleanProperty, ColorProperty, ListProperty, NumericProperty, StringProperty
@@ -259,21 +260,6 @@ KV = '''
             pos: self.pos
             size: self.size
             radius: [dp(16)]
-<RImage>:
-    canvas.before:
-        StencilPush
-        RoundedRectangle:
-            pos: self.pos
-            size: self.size
-            radius: [app.r_media]
-        StencilUse
-    canvas.after:
-        StencilUnUse
-        RoundedRectangle:
-            pos: self.pos
-            size: self.size
-            radius: [app.r_media]
-        StencilPop
 '''
 
 
@@ -301,42 +287,84 @@ class Chip(Label):
 
 
 _TEX = {}
+ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icons')
+_ICON_TEX = {}
 
 
-class RImage(Image):
-    """Картинка с собственной загрузкой (без стандартной анимации Kivy)."""
-    def load(self, src, done):
-        if src in _TEX:
-            self.texture = _TEX[src]
-            return done()
-        if not src.startswith('http'):
+def icon_tex(name):
+    """Иконка из icons/<имя>.png. Подходит любой одноцветный PNG: он перекрашивается в цвет темы.
+    Если файла нет, возвращается None и рисуется встроенная иконка."""
+    if name in _ICON_TEX:
+        return _ICON_TEX[name]
+    tex = None
+    p = os.path.join(ICON_DIR, name + '.png')
+    if os.path.exists(p):
+        try:
+            from PIL import Image as PI, ImageOps
+            im = PI.open(p).convert('RGBA')
+            alpha = im.split()[3]
+            if alpha.getextrema()[0] == 255:       # нет прозрачности: чёрное на белом, берём яркость как маску
+                alpha = ImageOps.invert(im.convert('L'))
+            white = PI.new('RGBA', im.size, (255, 255, 255, 255))
+            white.putalpha(alpha)
+            buf = io.BytesIO()
+            white.save(buf, 'PNG')
+            buf.seek(0)
+            tex = CoreImage(buf, ext='png').texture
+        except Exception:
             try:
-                self.texture = CoreImage(src).texture
+                tex = CoreImage(p).texture
             except Exception:
-                pass
-            return done()
+                tex = None
+        if tex:
+            tex.mag_filter = tex.min_filter = 'linear'
+    _ICON_TEX[name] = tex
+    return tex
 
-        def run():
-            try:
-                r = requests.get(src, timeout=30)
-                r.raise_for_status()
-                data = r.content
-            except Exception:
-                data = None
-            Clock.schedule_once(lambda dt_: self._set(src, data, done))
-        threading.Thread(target=run, daemon=True).start()
 
-    def _set(self, src, data, done):
-        if data:
-            try:
-                t = CoreImage(io.BytesIO(data), ext=os.path.splitext(src.split('?')[0])[1].lstrip('.') or 'jpg').texture
-                if len(_TEX) > 80:
-                    _TEX.clear()
-                _TEX[src] = t
-                self.texture = t
-            except Exception:
-                pass
-        done()
+def load_tex(src, done):
+    """Загружает картинку (адрес или файл) и вызывает done(текстура, размытая_текстура) в главном потоке."""
+    if src in _TEX:
+        return done(*_TEX[src])
+
+    def make(data):
+        try:
+            ext = os.path.splitext(src.split('?')[0])[1].lstrip('.') or 'jpg'
+            tex = CoreImage(io.BytesIO(data), ext=ext).texture if data else CoreImage(src).texture
+        except Exception:
+            return done(None, None)
+        blur = None
+        try:  # маленькая размытая копия: фон для фото, которые не влезли в рамку
+            from PIL import Image as PI, ImageFilter
+            im = PI.open(io.BytesIO(data) if data else src)
+            im.draft('RGB', (96, 96))
+            im = im.convert('RGB').resize((24, 24)).filter(ImageFilter.GaussianBlur(2))
+            buf = io.BytesIO()
+            im.save(buf, 'PNG')
+            buf.seek(0)
+            blur = CoreImage(buf, ext='png').texture
+            blur.mag_filter = blur.min_filter = 'linear'
+        except Exception:
+            pass
+        if len(_TEX) > 60:
+            _TEX.clear()
+        _TEX[src] = (tex, blur)
+        done(tex, blur)
+
+    if not src.startswith('http'):
+        return make(None)
+
+    def run():
+        try:
+            r = requests.get(src, timeout=30)
+            r.raise_for_status()
+            data = r.content
+        except Exception:
+            data = False
+        Clock.schedule_once(lambda dt_: make(data) if data else done(None, None))
+    threading.Thread(target=run, daemon=True).start()
+
+
 class Pill(BoxLayout): pass
 class Indicator(FloatLayout):
     on = BooleanProperty(False)
@@ -362,6 +390,13 @@ class Icon(Widget):
         lw, n = dp(1.8), self.name
         with self.canvas:
             Color(*self.color)
+            tex = (icon_tex(n + '-fill') if self.filled else None) or icon_tex(n)
+            if tex:
+                Rectangle(texture=tex, pos=self.pos, size=self.size)
+                if self.dot:
+                    Color(1, .23, .23, 1)
+                    Ellipse(pos=P(.36, -.04), size=(.28 * w, .28 * h))
+                return
             if n == 'home':
                 Line(points=fl(P(.1, .48), P(.5, .92), P(.9, .48), P(.9, .1), P(.1, .1)), close=True, width=lw)
             elif n == 'search':
@@ -459,6 +494,7 @@ class NavItem(ButtonBehavior, BoxLayout):
     def set_active(self, on):
         self.ind.on = on
         self.ic.color = ONSEC if on else MU
+        self.ic.filled = on   # активный пункт использует заполненный вариант иконки, если он есть
         self.lb.color = TX if on else MU
         self.lb.bold = on
 
@@ -512,29 +548,80 @@ class Dumbbell(Widget):
 
 
 class Photo(FloatLayout):
-    """Фото со скруглением. Пока оно грузится, крутится гантель. fit: 'cover' (заполнить) или 'contain' (вписать)."""
-    def __init__(self, source='', fit='cover', **kw):
+    """Фото как в соцсетях. Картинка рисуется прямо в этом виджете (без вложенных, поэтому не «съезжает»).
+    fit='adaptive' (лента): рамка повторяет пропорции снимка в пределах от 4:5 до 1.91:1; если снимок ещё
+    шире или выше, он вписывается целиком поверх размытого фона и ничего не обрезается.
+    fit='cover': плитка с обрезкой по центру. fit='contain': вписать целиком."""
+    def __init__(self, source='', fit='adaptive', ratio=None, **kw):
         super().__init__(**kw)
-        self.img = RImage(fit_mode=fit, size_hint=(None, None), pos=self.pos, size=self.size)
-        self.add_widget(self.img)
-        self.bind(pos=self._sync, size=self._sync)
+        self.fit, self.ratio, self.tex, self.blur = fit, ratio, None, None
         self.dumb = Dumbbell(size=(dp(40), dp(40)), pos_hint={'center_x': .5, 'center_y': .5})
+        self.bind(pos=self.draw, size=self.draw)
+        if fit == 'adaptive':
+            self.bind(width=self._adapt)
+            self.height = (Window.width - dp(56)) / self._box_ratio()
         self.set(source)
+
+    def _box_ratio(self):
+        r = self.ratio or (self.tex.width / self.tex.height if self.tex else .8)
+        return min(max(r, .8), 1.91)
+
+    def _adapt(self, *a):
+        if self.fit == 'adaptive' and self.width > 2:
+            h = min(self.width / self._box_ratio(), Window.height * .72)
+            if abs(self.height - h) > 1:
+                self.height = h
 
     def set(self, source):
         if self.dumb.parent:
             self.remove_widget(self.dumb)
-        self.img.texture = None
+        self.tex = self.blur = None
+        self.draw()
         if source:
             self.add_widget(self.dumb)
-            self.img.load(source, self._done)
+            load_tex(source, self._got)
 
-    def _sync(self, *a):
-        self.img.pos, self.img.size = self.pos, self.size
-
-    def _done(self, *a):
+    def _got(self, tex, blur):
+        self.tex, self.blur = tex, blur
         if self.dumb.parent:
             self.remove_widget(self.dumb)
+        self._adapt()
+        self.draw()
+
+    @staticmethod
+    def _crop(t, w, h):
+        ta, ba = t.width / t.height, w / h
+        rw, rh = (t.height * ba, t.height) if ta > ba else (t.width, t.width / ba)
+        return t.get_region((t.width - rw) / 2, (t.height - rh) / 2, rw, rh)
+
+    def draw(self, *a):
+        self.canvas.before.clear()
+        x, y, w, h = self.x, self.y, self.width, self.height
+        if w < 2 or h < 2:
+            return
+        r = App.get_running_app().r_media or dp(16)
+        t = self.tex
+        with self.canvas.before:
+            Color(*CARD2)
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[r])
+            if t:
+                StencilPush()
+                RoundedRectangle(pos=self.pos, size=self.size, radius=[r])
+                StencilUse()
+                ta, ba = t.width / t.height, w / h
+                Color(1, 1, 1, 1)
+                if self.fit == 'cover' or (self.fit == 'adaptive' and abs(ta - ba) < .03):
+                    Rectangle(texture=self._crop(t, w, h), pos=self.pos, size=self.size)
+                else:
+                    if self.fit == 'adaptive' and self.blur:
+                        Color(.65, .65, .65, 1)
+                        Rectangle(texture=self._crop(self.blur, w, h), pos=self.pos, size=self.size)
+                        Color(1, 1, 1, 1)
+                    dw, dh = (w, w / ta) if ta > ba else (h * ta, h)
+                    Rectangle(texture=t, pos=(x + (w - dw) / 2, y + (h - dh) / 2), size=(dw, dh))
+                StencilUnUse()
+                RoundedRectangle(pos=self.pos, size=self.size, radius=[r])
+                StencilPop()
 
 
 class PhotoB(ButtonBehavior, Photo): pass
@@ -570,6 +657,7 @@ class IconBtn(ButtonBehavior, FloatLayout):
 
     def __init__(self, icon, style='tonal', size=40, **kw):
         super().__init__(size_hint=(None, None), size=(dp(size), dp(size)), **kw)
+        self.sz = size
         self.ic = Icon(name=icon, size_hint=(None, None), size=(dp(size * .52), dp(size * .52)),
                        pos_hint={'center_x': .5, 'center_y': .5})
         self.add_widget(self.ic)
@@ -578,7 +666,10 @@ class IconBtn(ButtonBehavior, FloatLayout):
     def set(self, icon, style):
         self.ic.name = icon
         self.bgc, self.ic.color = {'filled': (ACC, INK), 'tonal': (CARD2, TX), 'danger': (CARD2, (1, .38, .38, 1)),
-                                   'plain': ((0, 0, 0, 0), MU)}[style]
+                                   'plain': ((0, 0, 0, 0), MU), 'ghost': ((0, 0, 0, 0), ACC),
+                                   'ghostmuted': ((0, 0, 0, 0), MU)}[style]
+        k = .62 if style.startswith('ghost') else .52   # без подложки значок крупнее
+        self.ic.size = (dp(self.sz * k), dp(self.sz * k))
 
     def on_disabled(self, w, v):
         self.opacity = .4 if v else 1
@@ -590,6 +681,7 @@ class D:  # состояние
     LK, CM = [], []
     loading = False
     busy = 0
+    ptab = 'form'
     scope = 'all'
     seen = ''
     known, known_init = set(), False
@@ -746,7 +838,7 @@ def follow_btn(u):
     if u == D.uid:
         return None
     on = is_f(u)
-    b = IconBtn('following' if on else 'follow', 'tonal' if on else 'filled', pos_hint={'center_y': .5})
+    b = IconBtn('following' if on else 'follow', 'ghostmuted' if on else 'ghost', pos_hint={'center_y': .5})
     b.bind(on_release=lambda x: toggle_follow(u, x))
     return b
 
@@ -762,7 +854,7 @@ def toggle_follow(u, btn=None):
     app = App.get_running_app()
     on = is_f(u)
     if btn:
-        btn.set('following' if on else 'follow', 'tonal' if on else 'filled')
+        btn.set('following' if on else 'follow', 'ghostmuted' if on else 'ghost')
     if app.stack and app.stack[-1] == ('user', u):
         app.render()  # обновить счётчики подписчиков
     bg(fn)
@@ -832,8 +924,10 @@ def post_card(w, cm=True):
             vb.bind(on_release=lambda *a: open_media([{**w, 'caption': w.get('note')}]))
             c.add_widget(vb)
         else:
-            c.add_widget(Photo(source=media_url(w['media_path']), size_hint_y=None,
-                               height=min((Window.width - dp(56)) * 1.25, Window.height * .65)))
+            ph = PhotoB(source=media_url(w['media_path']), fit='adaptive', size_hint_y=None,
+                        ratio=(w['media_w'] / w['media_h']) if w.get('media_w') and w.get('media_h') else None)
+            ph.bind(on_release=lambda *a: open_media([{**w, 'caption': w.get('note')}]))   # по нажатию фото открывается целиком
+            c.add_widget(ph)
     sl = StackLayout(size_hint_y=None, spacing=dp(6))
     sl.bind(minimum_height=sl.setter('height'))
     if w.get('kg'):
@@ -1103,33 +1197,63 @@ def v_user(u):
         th = Btn(text='Студия темы', bg=CARD2, fg=TX)
         th.bind(on_release=lambda *a: app.go('theme'))
         ch += [e, th, o]
-    ch.append(L(text='[size=20sp][b]Актуальная форма[/b][/size]'))
-    if u == D.uid:
-        a = Btn(text='+ Добавить фото или видео формы')
-        a.bind(on_release=lambda *a: app.go('compose', 'form'))
-        ch.append(a)
-    if forms:
-        cell = (Window.width - dp(24) - dp(8)) / 3
-        gr = GridLayout(cols=3, spacing=dp(4), size_hint_y=None, row_force_default=True, row_default_height=cell)
-        gr.bind(minimum_height=gr.setter('height'))
-        for i, w in enumerate(forms):
-            if w['media_type'] == 'v':
-                t = Btn(text='Видео', bg=CARD2, fg=TX, size_hint=(1, 1), font_size=dp(13))
-            else:
-                t = PhotoB(source=media_url(w['media_path']), size_hint=(1, 1))
-            t.bind(on_release=lambda x, i=i: open_media(forms, i))
-            tile = FloatLayout()
-            tile.add_widget(t)
-            if u == D.uid:
-                dbtn = IconBtn('trash', 'tonal', size=34, pos_hint={'right': .96, 'top': .96})
-                dbtn.bind(on_release=lambda x, w=w: confirm('Удалить это фото формы?', lambda: delete_post('form_posts', w)))
-                tile.add_widget(dbtn)
-            gr.add_widget(tile)
-        ch.append(gr)
-    else:
-        ch.append(L(text='[color=99a1a8]Фото и короткие видео формы пока не добавлены.[/color]'))
-    ch.append(L(text='[size=20sp][b]Тренировки[/b][/size]'))
-    ch += [post_card(w) for w in posts[:15]] or [L(text='[color=99a1a8]Постов пока нет.[/color]')]
+    # две вкладки профиля: актуальная форма и тренировки (содержимое меняется на месте, прокрутка не сбрасывается)
+    sec = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(12))
+    sec.bind(minimum_height=sec.setter('height'))
+
+    def fill_form():
+        if u == D.uid:
+            ab = Btn(text='+ Добавить фото или видео формы')
+            ab.bind(on_release=lambda *a: app.go('compose', 'form'))
+            sec.add_widget(ab)
+        if not forms:
+            sec.add_widget(L(text='[color=99a1a8]Фото и короткие видео формы пока не добавлены.[/color]'))
+            return
+        for r0 in range(0, len(forms), 3):
+            # ряд из трёх квадратных плиток; высота ряда всегда равна ширине плитки
+            row = BoxLayout(size_hint_y=None, spacing=dp(4))
+            row.height = (Window.width - dp(32) - 2 * dp(4)) / 3
+            row.bind(width=lambda inst, wd: setattr(inst, 'height', (wd - 2 * dp(4)) / 3))
+            for i in range(r0, r0 + 3):
+                if i >= len(forms):
+                    row.add_widget(Widget())
+                    continue
+                w = forms[i]
+                tile = FloatLayout()
+                if w['media_type'] == 'v':
+                    t = Btn(text='Видео', bg=CARD2, fg=TX, size_hint=(1, 1), font_size=dp(13))
+                else:
+                    t = PhotoB(source=media_url(w['media_path']), fit='cover', size_hint=(1, 1))
+                t.bind(on_release=lambda x, i=i: open_media(forms, i))
+                tile.add_widget(t)
+                if u == D.uid:
+                    dbtn = IconBtn('trash', 'tonal', size=34, pos_hint={'right': .96, 'top': .96})
+                    dbtn.bind(on_release=lambda x, w=w: confirm('Удалить это фото формы?', lambda: delete_post('form_posts', w)))
+                    tile.add_widget(dbtn)
+                row.add_widget(tile)
+            sec.add_widget(row)
+
+    def fill_posts():
+        for w in posts[:15]:
+            sec.add_widget(post_card(w))
+        if not posts:
+            sec.add_widget(L(text='[color=99a1a8]Тренировок пока нет.[/color]'))
+
+    tabs, tb = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8)), {}
+
+    def show(k):
+        D.ptab = k
+        sec.clear_widgets()
+        (fill_form if k == 'form' else fill_posts)()
+        for kk, bt in tb.items():
+            bt.bg, bt.fg = (SEC, ONSEC) if kk == k else (CARD2, TX)
+    for k, t in (('form', f'Форма · {len(forms)}'), ('posts', f'Тренировки · {len(posts)}')):
+        bt = Btn(text=t, height=dp(44))
+        bt.bind(on_release=lambda x, k=k: show(k))
+        tb[k] = bt
+        tabs.add_widget(bt)
+    show(D.ptab)
+    ch += [tabs, sec]
     return scroll(ch)
 
 
@@ -1196,6 +1320,7 @@ def pick(cb, kind='image'):
 def upload(path, kind=None):
     ext = os.path.splitext(path)[1].lower().lstrip('.')
     video = (kind == 'video') if kind else ext in VIDEO_EXT
+    dims = (None, None)
     if video and ext not in VIDEO_EXT:
         ext = 'mp4'
     if video:
@@ -1207,12 +1332,13 @@ def upload(path, kind=None):
         import io
         im = Image.open(path).convert('RGB')
         im.thumbnail((1080, 1080))
+        dims = im.size
         buf = io.BytesIO()
         im.save(buf, 'JPEG', quality=85)
         data, ct, ext = buf.getvalue(), 'image/jpeg', 'jpg'
     name = f'{D.uid}/{int(time.time() * 1000)}.{ext}'
     rq('POST', '/storage/v1/object/media/' + name, data=data, headers={'Content-Type': ct})
-    return name, 'v' if video else 'i'
+    return name, 'v' if video else 'i', dims[0], dims[1]
 
 
 def v_compose(kind):
@@ -1223,7 +1349,7 @@ def v_compose(kind):
                  else head('Фиксируем победы', 'Добавить тренировку', 'Поделитесь работой, команда поддержит'))
     chosen = {'p': None, 'k': None}
     st = L(text='[color=99a1a8]Фото или видео из галереи (видео до 20 МБ)[/color]')
-    prev = Photo(size_hint_y=None, height=0)
+    prev = Photo(fit='contain', size_hint_y=None, height=0)
 
     def picked(p, k):
         chosen.update(p=p, k=k)
@@ -1256,12 +1382,20 @@ def v_compose(kind):
         def run():
             row = {'user_id': D.uid, 'note' if not form else 'caption': f['note'].text.strip() or None}
             if chosen['p']:
-                row['media_path'], row['media_type'] = upload(chosen['p'], chosen['k'])
-            if form:
-                rq('POST', '/rest/v1/form_posts', json=row, headers={'Prefer': 'return=minimal'})
-            else:
+                row['media_path'], row['media_type'], mw, mh = upload(chosen['p'], chosen['k'])
+                if mw:
+                    row['media_w'], row['media_h'] = mw, mh
+            if not form:
                 row.update(ex=f['ex'].text.strip(), kg=n('kg'), reps=int(n('reps')), sets=int(n('sets')))
-                rq('POST', '/rest/v1/posts', json=row, headers={'Prefer': 'return=minimal'})
+            tbl = '/rest/v1/form_posts' if form else '/rest/v1/posts'
+            try:
+                rq('POST', tbl, json=row, headers={'Prefer': 'return=minimal'})
+            except Exception as e:
+                if 'media_w' not in str(e) and 'media_h' not in str(e):
+                    raise
+                row.pop('media_w', None)   # в базе ещё нет колонок из schema_v4.sql
+                row.pop('media_h', None)
+                rq('POST', tbl, json=row, headers={'Prefer': 'return=minimal'})
 
         def fin(_):
             app.load_all(first=False)
