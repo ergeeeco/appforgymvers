@@ -675,6 +675,29 @@ class IconBtn(ButtonBehavior, FloatLayout):
         self.opacity = .4 if v else 1
 
 
+class TopScroll(ScrollView):
+    """ScrollView, который при изменении высоты содержимого сохраняет позицию относительно верха.
+    Обычный ScrollView держит долю прокрутки, поэтому при переключении вкладок страница «уезжает»."""
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self._off, self._adj = 0.0, False
+        self.bind(scroll_y=self._track)
+
+    def _total(self):
+        c = self.children[0] if self.children else None
+        return (c.height - self.height) if c else 0
+
+    def _track(self, *a):
+        if not self._adj:
+            self._off = max(0.0, (1 - self.scroll_y) * self._total())
+
+    def fix(self, *a):
+        t = self._total()
+        self._adj = True
+        self.scroll_y = (1 - min(self._off, t) / t) if t > 0 else 1
+        self._adj = False
+
+
 class D:  # состояние
     tok = rt = uid = None
     P, FO, PO, FM = {}, [], [], []
@@ -713,10 +736,15 @@ def save_cache():
 
 
 def refresh_token():
-    if not D.rt:
+    sess = read_json(sess_file()) or {}
+    if sess.get('at') and sess.get('exp', 0) - time.time() > 60 and sess['at'] != D.tok:
+        D.tok, D.rt, D.uid = sess['at'], sess.get('rt') or D.rt, sess.get('uid') or D.uid
+        return True  # токен уже обновила фоновая служба
+    rt = sess.get('rt') or D.rt
+    if not rt:
         return False
     try:
-        r = requests.post(BASE + '/auth/v1/token?grant_type=refresh_token', json={'refresh_token': D.rt},
+        r = requests.post(BASE + '/auth/v1/token?grant_type=refresh_token', json={'refresh_token': rt},
                           headers={'apikey': KEY}, timeout=20)
         if r.status_code >= 400:
             return False
@@ -728,15 +756,34 @@ def refresh_token():
 
 def set_session(d):
     D.tok, D.rt, D.uid = d['access_token'], d['refresh_token'], d['user']['id']
+    exp = d.get('expires_at') or time.time() + d.get('expires_in', 3600)
     try:
         with open(sess_file(), 'w') as f:
-            json.dump({'rt': D.rt, 'uid': D.uid}, f)
+            json.dump({'rt': D.rt, 'uid': D.uid, 'at': D.tok, 'exp': exp}, f)
+    except Exception:
+        pass
+
+
+def data_file(name):
+    return os.path.join(App.get_running_app().user_data_dir, name)
+
+
+def load_settings():
+    return read_json(data_file('settings.json')) or {}
+
+
+def save_settings(d):
+    try:
+        with open(data_file('settings.json'), 'w') as fh:
+            json.dump(d, fh)
     except Exception:
         pass
 
 
 def rq(method, path, _retry=True, **kw):
-    h = {'apikey': KEY, 'Authorization': 'Bearer ' + (D.tok or KEY), 'Content-Type': 'application/json'}
+    h = {'apikey': KEY, 'Authorization': 'Bearer ' + (D.tok or KEY)}
+    if 'json' in kw or 'data' in kw:
+        h['Content-Type'] = 'application/json'   # для запросов без тела (удаление файла) заголовок не нужен
     extra = kw.pop('headers', {})
     h.update(extra)
     r = requests.request(method, BASE + path, headers=h, timeout=30, **kw)
@@ -823,8 +870,9 @@ def scroll(children):
     gl.bind(minimum_height=gl.setter('height'))
     for c in children:
         gl.add_widget(c)
-    s = ScrollView()
+    s = TopScroll()
     s.add_widget(gl)
+    gl.bind(height=s.fix)
     return s
 
 
@@ -970,6 +1018,20 @@ def post_card(w, cm=True):
         more.bind(on_release=lambda *a: App.get_running_app().go('comments', pid))
         c.add_widget(more)
     return c
+
+
+def notice(text):
+    mv = ModalView(size_hint=(.9, None), height=dp(260), background='', background_color=(0, 0, 0, .6))
+    c = Card(padding=dp(16), spacing=dp(14), pos_hint={'center_x': .5, 'center_y': .5})
+    c.add_widget(L(text=f'[size=15sp]{esc(text)}[/size]'))
+    row = BoxLayout(size_hint_y=None, height=dp(48))
+    close = IconBtn('close', 'tonal', size=48)
+    close.bind(on_release=lambda *a: mv.dismiss())
+    for wgt in (Widget(), close, Widget()):
+        row.add_widget(wgt)
+    c.add_widget(row)
+    mv.add_widget(c)
+    mv.open()
 
 
 def confirm(text, yes):
@@ -1196,7 +1258,11 @@ def v_user(u):
         o.bind(on_release=lambda *a: app.logout())
         th = Btn(text='Студия темы', bg=CARD2, fg=TX)
         th.bind(on_release=lambda *a: app.go('theme'))
-        ch += [e, th, o]
+        pb = Btn(text='Фоновые уведомления: ' + ('вкл' if load_settings().get('push', True) else 'выкл'), bg=CARD2, fg=TX)
+        pb.bind(on_release=lambda *a: app.toggle_push(pb))
+        pc = Btn(text='Проверить push-уведомления', bg=CARD2, fg=TX)
+        pc.bind(on_release=lambda *a: app.check_push())
+        ch += [e, th, pb, pc, o]
     # две вкладки профиля: актуальная форма и тренировки (содержимое меняется на месте, прокрутка не сбрасывается)
     sec = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(12))
     sec.bind(minimum_height=sec.setter('height'))
@@ -1209,29 +1275,36 @@ def v_user(u):
         if not forms:
             sec.add_widget(L(text='[color=99a1a8]Фото и короткие видео формы пока не добавлены.[/color]'))
             return
-        for r0 in range(0, len(forms), 3):
-            # ряд из трёх квадратных плиток; высота ряда всегда равна ширине плитки
-            row = BoxLayout(size_hint_y=None, spacing=dp(4))
-            row.height = (Window.width - dp(32) - 2 * dp(4)) / 3
-            row.bind(width=lambda inst, wd: setattr(inst, 'height', (wd - 2 * dp(4)) / 3))
-            for i in range(r0, r0 + 3):
-                if i >= len(forms):
-                    row.add_widget(Widget())
-                    continue
-                w = forms[i]
-                tile = FloatLayout()
-                if w['media_type'] == 'v':
-                    t = Btn(text='Видео', bg=CARD2, fg=TX, size_hint=(1, 1), font_size=dp(13))
-                else:
-                    t = PhotoB(source=media_url(w['media_path']), fit='cover', size_hint=(1, 1))
+        # мозаика: две колонки, каждое фото в своей пропорции (от 4:5 до 1.91:1), ничего не обрезается
+        cw = (Window.width - dp(32) - dp(8)) / 2
+        cols = [BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(8), pos_hint={'top': 1}) for _ in range(2)]
+        for cl in cols:
+            cl.bind(minimum_height=cl.setter('height'))
+        est = [0.0, 0.0]
+        for i, w in enumerate(forms):
+            k = 0 if est[0] <= est[1] else 1
+            if w['media_type'] == 'v':
+                tile = FloatLayout(size_hint_y=None, height=cw)
+                t = Btn(text='Видео', bg=CARD2, fg=TX, size_hint=(1, 1), font_size=dp(13))
                 t.bind(on_release=lambda x, i=i: open_media(forms, i))
                 tile.add_widget(t)
-                if u == D.uid:
-                    dbtn = IconBtn('trash', 'tonal', size=34, pos_hint={'right': .96, 'top': .96})
-                    dbtn.bind(on_release=lambda x, w=w: confirm('Удалить это фото формы?', lambda: delete_post('form_posts', w)))
-                    tile.add_widget(dbtn)
-                row.add_widget(tile)
-            sec.add_widget(row)
+                est[k] += 1
+            else:
+                has = bool(w.get('media_w') and w.get('media_h'))
+                ratio = (w['media_w'] / w['media_h']) if has else None
+                tile = PhotoB(source=media_url(w['media_path']), fit='adaptive', ratio=ratio, size_hint_y=None)
+                tile.bind(on_release=lambda x, i=i: open_media(forms, i))
+                est[k] += 1 / min(max(ratio or 1.0, .8), 1.91)
+            if u == D.uid:
+                dbtn = IconBtn('trash', 'tonal', size=34, pos_hint={'right': .96, 'top': .96})
+                dbtn.bind(on_release=lambda x, w=w: confirm('Удалить это фото формы?', lambda: delete_post('form_posts', w)))
+                tile.add_widget(dbtn)
+            cols[k].add_widget(tile)
+        wrap = BoxLayout(size_hint_y=None, spacing=dp(8))
+        wrap.bind(minimum_height=wrap.setter('height'))
+        for cl in cols:
+            wrap.add_widget(cl)
+        sec.add_widget(wrap)
 
     def fill_posts():
         for w in posts[:15]:
@@ -1328,14 +1401,25 @@ def upload(path, kind=None):
             raise RuntimeError('Видео больше 20 МБ. Выберите ролик покороче.')
         data, ct, ext = open(path, 'rb').read(), 'video/quicktime' if ext == 'mov' else 'video/mp4', ext
     else:
-        from PIL import Image
-        import io
-        im = Image.open(path).convert('RGB')
-        im.thumbnail((1080, 1080))
-        dims = im.size
-        buf = io.BytesIO()
-        im.save(buf, 'JPEG', quality=85)
-        data, ct, ext = buf.getvalue(), 'image/jpeg', 'jpg'
+        try:
+            from PIL import Image, ImageFile
+            ImageFile.LOAD_TRUNCATED_IMAGES = True
+            im = Image.open(path).convert('RGB')
+            im.thumbnail((1080, 1080))
+            dims = im.size
+            buf = io.BytesIO()
+            im.save(buf, 'JPEG', quality=85)
+            data, ct, ext = buf.getvalue(), 'image/jpeg', 'jpg'
+        except Exception:
+            # Pillow не смог открыть файл (например, WebP): отправляем как есть, размеры берёт Kivy
+            if os.path.getsize(path) > 20 * 1024 * 1024:
+                raise RuntimeError('Фото больше 20 МБ.')
+            data, ct, ext = open(path, 'rb').read(), 'image/jpeg', 'jpg'
+            try:
+                ci = CoreImage(path)
+                dims = (ci.width, ci.height)
+            except Exception:
+                pass
     name = f'{D.uid}/{int(time.time() * 1000)}.{ext}'
     rq('POST', '/storage/v1/object/media/' + name, data=data, headers={'Content-Type': ct})
     return name, 'v' if video else 'i', dims[0], dims[1]
@@ -1400,8 +1484,17 @@ def v_compose(kind):
         def fin(_):
             app.load_all(first=False)
             app.go('user' if form else 'feed', D.uid if form else None, root=True)
-        bg(run, fin)
-        Clock.schedule_once(lambda dt: setattr(go, 'disabled', False) or setattr(go, 'text', 'Опубликовать'), 30)
+        def reset(*a):
+            go.disabled, go.text = False, 'Опубликовать'
+
+        def guard():
+            try:
+                return run()
+            except Exception:
+                Clock.schedule_once(reset)   # при ошибке кнопка сразу снова доступна
+                raise
+        bg(guard, fin)
+        Clock.schedule_once(reset, 60)
     go.bind(on_release=submit)
     c.add_widget(go)
     return scroll([c])
@@ -1733,6 +1826,7 @@ class IronApp(App):
     shape, r_card, r_media, r_btn = NumericProperty(1), NumericProperty(0), NumericProperty(0), NumericProperty(0)
     mode = 'in'
     q = ''
+    paused = False
 
     def set_busy(self):
         """Маленькая гантель в шапке крутится, пока идёт любая загрузка."""
@@ -1792,6 +1886,7 @@ class IronApp(App):
     def on_start(self):
         load_seen()
         Clock.schedule_interval(lambda dt_: D.uid and self.load_all(silent=True), 60)
+        Clock.schedule_interval(self._beat, 20)
         sess, cache = read_json(sess_file()), read_json(cache_file())
         if sess and sess.get('rt') and sess.get('uid') and cache and cache.get('uid') == sess['uid']:
             # мгновенный старт: показываем сохранённую ленту, а вход обновляем в фоне
@@ -1800,6 +1895,7 @@ class IronApp(App):
             D.LK, D.CM = cache.get('LK', []), cache.get('CM', [])
             D.known, D.known_init = {w['id'] for w in D.PO}, True
             self.go('feed', root=True)
+            self.start_push()
             bg(refresh_token, self._after_refresh, quiet=True)
         elif sess and sess.get('rt'):
             D.rt, D.loading = sess['rt'], True
@@ -1842,6 +1938,154 @@ class IronApp(App):
         except Exception:
             pass
 
+    fcm_token = None
+    push_note = ''
+
+    def _fcm_begin(self):
+        """Запускает получение токена Firebase. Вызывается только в главном потоке: Java-классы приложения
+        (в том числе Firebase) не находятся из обычных потоков Python. Возвращает (задача, пояснение)."""
+        try:
+            from jnius import autoclass
+        except Exception:
+            return None, 'Это не Android: Firebase работает только на телефоне.'
+        try:
+            FirebaseApp = autoclass('com.google.firebase.FirebaseApp')
+            Messaging = autoclass('com.google.firebase.messaging.FirebaseMessaging')
+        except Exception as e:
+            return None, ('Классы Firebase не найдены в приложении (' + str(e)[:150] + '). Либо установлена сборка без '
+                          'Firebase, либо строки «Firebase push» в buildozer.spec не применились. Пересоберите приложение.')
+        try:
+            ctx = autoclass('org.kivy.android.PythonActivity').mActivity
+            if FirebaseApp.initializeApp(ctx) is None:
+                return None, ('Настройки Firebase не попали в сборку: нет firebase.xml. Выполните '
+                              'tools/make_firebase_xml.py и проверьте строку android.add_resources в buildozer.spec.')
+            return Messaging.getInstance().getToken(), 'ok'
+        except Exception as e:
+            return None, 'Ошибка Firebase: ' + str(e)[:200]
+
+    def _register_push(self, done):
+        """Получает токен (ожидание без блокировки интерфейса), сохраняет его на сервере и вызывает done(токен, пояснение)."""
+        task, note = self._fcm_begin()
+        if not task:
+            return done(None, note)
+        st = {'n': 0}
+
+        def poll(dt):
+            st['n'] += 1
+            try:
+                if not task.isComplete():
+                    if st['n'] > 60:
+                        done(None, 'Токен не получен: Google не ответил за 30 секунд. Проверьте интернет и сервисы Google Play.')
+                        return False
+                    return True
+                if not task.isSuccessful():
+                    exc = task.getException()
+                    why = str(exc.getMessage()) if exc else 'неизвестная ошибка'
+                    done(None, f'Токен не получен: {why}. На телефоне нужны сервисы Google Play и интернет.')
+                    return False
+                tok = task.getResult()
+                tok = str(tok.toString()) if hasattr(tok, 'toString') else str(tok)
+            except Exception as e:
+                done(None, 'Ошибка Firebase: ' + str(e)[:200])
+                return False
+            self.fcm_token = tok
+
+            def save():
+                try:
+                    rq('POST', '/rest/v1/push_tokens?on_conflict=token', json={'user_id': D.uid, 'token': tok},
+                       headers={'Prefer': 'resolution=merge-duplicates,return=minimal'})
+                    return None
+                except Exception as e:
+                    return str(e)[:200]
+            bg(save, lambda err: done(tok, 'ok' if not err else 'Токен получен, но не сохранён на сервере: ' + err), quiet=True)
+            return False
+        Clock.schedule_interval(poll, .5)
+
+    def start_push(self):
+        """Включает уведомления при закрытом приложении: Firebase push, а если он не подключён, фоновая служба."""
+        if not load_settings().get('push', True):
+            return
+
+        def done(tok, note):
+            self.push_note = note
+            if tok and note == 'ok':
+                self.stop_service()  # push от сервера надёжнее фонового опроса
+            else:
+                self.start_service()
+        self._register_push(done)
+
+    def check_push(self):
+        """Кнопка «Проверить push»: показывает, на каком шаге всё останавливается."""
+        def done(tok, note):
+            self.push_note = note
+            notice('Push подключён: токен получен и сохранён на сервере. Уведомления будут приходить и при закрытом приложении.'
+                   if tok and note == 'ok' else note)
+        self._register_push(done)
+
+    def start_service(self):
+        try:
+            from android import AndroidService
+            self._svc = AndroidService('Железный круг', 'Следим за новыми тренировками')
+            self._svc.start('go')
+        except Exception:
+            return
+        st = load_settings()
+        if not st.get('asked_battery'):
+            st['asked_battery'] = True
+            save_settings(st)
+            self.ask_battery()
+
+    def stop_service(self):
+        try:
+            from android import AndroidService
+            AndroidService('Железный круг', '').stop()
+        except Exception:
+            pass
+
+    def stop_push(self):
+        self.stop_service()
+        tok = self.fcm_token
+        if tok and D.tok:  # токен отвязывается от аккаунта, чтобы чужие уведомления не приходили на этот телефон
+            h = {'Authorization': 'Bearer ' + D.tok}
+            bg(lambda: rq('DELETE', f'/rest/v1/push_tokens?token=eq.{tok}', headers=h), quiet=True)
+        self.fcm_token = None
+
+    def ask_battery(self):
+        """Просит не ограничивать приложение в фоне, иначе Android может усыплять службу."""
+        try:
+            from jnius import autoclass, cast
+            act = autoclass('org.kivy.android.PythonActivity').mActivity
+            pkg = act.getPackageName()
+            pm = cast('android.os.PowerManager', act.getSystemService(autoclass('android.content.Context').POWER_SERVICE))
+            if not pm.isIgnoringBatteryOptimizations(pkg):
+                it = autoclass('android.content.Intent')(autoclass('android.provider.Settings').ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                it.setData(autoclass('android.net.Uri').parse('package:' + pkg))
+                act.startActivity(it)
+        except Exception:
+            pass
+
+    def toggle_push(self, btn):
+        st = load_settings()
+        st['push'] = not st.get('push', True)
+        save_settings(st)
+        btn.text = 'Фоновые уведомления: ' + ('вкл' if st['push'] else 'выкл')
+        if st['push']:
+            self.ask_notif()
+            self.start_push()
+        else:
+            self.stop_push()
+
+    def _beat(self, dt=None, off=False):
+        """Отметка «приложение открыто»: пока она свежая, служба не дублирует уведомления."""
+        try:
+            with open(data_file('app_active.json'), 'w') as fh:
+                json.dump({'t': 0 if (off or self.paused) else time.time()}, fh)
+        except Exception:
+            pass
+
+    def on_stop(self):
+        self._beat(off=True)
+
     def ask_notif(self):
         try:
             from android.permissions import request_permissions
@@ -1850,9 +2094,13 @@ class IronApp(App):
             pass
 
     def on_pause(self):
+        self.paused = True
+        self._beat()
         return True
 
     def on_resume(self):
+        self.paused = False
+        self._beat()
         if D.uid:
             self.load_all(silent=True)
 
@@ -1897,6 +2145,7 @@ class IronApp(App):
             threading.Thread(target=save_cache, daemon=True).start()
             if first:
                 self.ask_notif()
+                self.start_push()
                 self.go('feed', root=True)
             elif (not silent or sig() != before) and self.stack[-1][0] in ('feed', 'rank', 'user', 'comments', 'notes', 'people'):
                 self.render()
@@ -1936,7 +2185,8 @@ class IronApp(App):
         return False
 
     def logout(self):
-        for p in (sess_file(), cache_file()):
+        self.stop_push()
+        for p in (sess_file(), cache_file(), data_file('push_state.json')):
             try:
                 os.remove(p)
             except Exception:

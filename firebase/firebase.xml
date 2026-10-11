@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="google_app_id" translatable="false">1:380488688085:android:cf3f9e8751f50b165e5d5c</string>
+    <string name="gcm_defaultSenderId" translatable="false">380488688085</string>
+    <string name="google_api_key" translatable="false">AIzaSyBKAob5tpx_kRZHUCuv8q_xOIcqKkD3G1U</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyBKAob5tpx_kRZHUCuv8q_xOIcqKkD3G1U</string>
+    <string name="project_id" translatable="false">appgymver</string>
+    <string name="google_storage_bucket" translatable="false">appgymver.firebasestorage.app</string>
+</resources>

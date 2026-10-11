@@ -13,13 +13,18 @@ icon.filename = icon-512.png
 presplash.filename = %(source.dir)s/presplash.png
 android.presplash_color = #0c150e
 # Анимированная заставка (вращающаяся гантель). Раскомментируйте, если сборка с Lottie проходит:
-#presplash.lottie = %(source.dir)s/presplash.lottie
-android.permissions = INTERNET,POST_NOTIFICATIONS
-android.api = 34
+presplash.lottie = %(source.dir)s/presplash.lottie
+# Фоновая служба уведомлений (работает, когда приложение закрыто)
+services = notifier:service/notifier.py:foreground:sticky
+android.permissions = INTERNET,POST_NOTIFICATIONS,FOREGROUND_SERVICE,WAKE_LOCK,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+android.api = 33
 android.minapi = 24
 android.archs = arm64-v8a, armeabi-v7a
 android.accept_sdk_license = True
 android.enable_androidx = True
+
+android.gradle_dependencies = com.google.firebase:firebase-messaging:23.1.2
+android.add_resources = firebase/firebase.xml:values/firebase.xml
 android.ndk = 25b
 p4a.branch = v2024.01.21
 

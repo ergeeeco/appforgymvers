@@ -1,0 +1,2 @@
+URL = 'https://hyivdkhkkgmkjyvyvefl.supabase.co'
+KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5aXZka2hra2dta2p5dnl2ZWZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyOTIwNjQsImV4cCI6MjEwNjg2ODA2NH0.a1OPsH8uftGRzoLXbmKNAVPNNvbdJSeORZ1YQYZi8wA'

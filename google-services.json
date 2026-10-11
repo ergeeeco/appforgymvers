@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "380488688085",
+    "project_id": "appgymver",
+    "storage_bucket": "appgymver.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:380488688085:android:cf3f9e8751f50b165e5d5c",
+        "android_client_info": {
+          "package_name": "org.ironcircle.ironcircle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKAob5tpx_kRZHUCuv8q_xOIcqKkD3G1U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
