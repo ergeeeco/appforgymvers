@@ -1,0 +1,1287 @@
+{
+ "kinds": {
+  "weight": "вес и повторы",
+  "bodyweight": "повторы (можно с отягощением)",
+  "time": "время",
+  "distance": "дистанция"
+ },
+ "exercises": [
+  {
+   "id": "squat",
+   "name": "Приседания со штангой",
+   "category": "Троеборье",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": "squat"
+  },
+  {
+   "id": "bench_press",
+   "name": "Жим лёжа",
+   "category": "Троеборье",
+   "muscles": [
+    "грудь",
+    "трицепс",
+    "плечи"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": "bench"
+  },
+  {
+   "id": "deadlift",
+   "name": "Становая тяга",
+   "category": "Троеборье",
+   "muscles": [
+    "спина",
+    "ягодицы",
+    "бицепс бедра"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": "deadlift"
+  },
+  {
+   "id": "deadlift_sumo",
+   "name": "Становая тяга сумо",
+   "category": "Троеборье",
+   "muscles": [
+    "ягодицы",
+    "спина",
+    "приводящие"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": "deadlift"
+  },
+  {
+   "id": "front_squat",
+   "name": "Фронтальный присед",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "кор"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "pause_squat",
+   "name": "Присед с паузой",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "box_squat",
+   "name": "Присед на ящик",
+   "category": "Присед и ноги",
+   "muscles": [
+    "ягодицы",
+    "бицепс бедра"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "smith_squat",
+   "name": "Присед в тренажёре Смита",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "goblet_squat",
+   "name": "Гоблет-присед",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "гантель",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "bulgarian_split_squat",
+   "name": "Болгарские сплит-приседания",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "lunge",
+   "name": "Выпады",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "walking_lunge",
+   "name": "Выпады в ходьбе",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "step_up",
+   "name": "Зашагивания на платформу",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "leg_press",
+   "name": "Жим ногами",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс",
+    "ягодицы"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "hack_squat",
+   "name": "Гакк-присед",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "leg_extension",
+   "name": "Разгибание ног",
+   "category": "Присед и ноги",
+   "muscles": [
+    "квадрицепс"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "leg_curl_lying",
+   "name": "Сгибание ног лёжа",
+   "category": "Присед и ноги",
+   "muscles": [
+    "бицепс бедра"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "leg_curl_seated",
+   "name": "Сгибание ног сидя",
+   "category": "Присед и ноги",
+   "muscles": [
+    "бицепс бедра"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "hip_thrust",
+   "name": "Ягодичный мостик со штангой",
+   "category": "Присед и ноги",
+   "muscles": [
+    "ягодицы"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "glute_bridge",
+   "name": "Ягодичный мостик",
+   "category": "Присед и ноги",
+   "muscles": [
+    "ягодицы"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "hip_abduction",
+   "name": "Разведение ног в тренажёре",
+   "category": "Присед и ноги",
+   "muscles": [
+    "ягодицы"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "hip_adduction",
+   "name": "Сведение ног в тренажёре",
+   "category": "Присед и ноги",
+   "muscles": [
+    "приводящие"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "calf_raise_standing",
+   "name": "Подъём на носки стоя",
+   "category": "Присед и ноги",
+   "muscles": [
+    "икры"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "calf_raise_seated",
+   "name": "Подъём на носки сидя",
+   "category": "Присед и ноги",
+   "muscles": [
+    "икры"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "close_grip_bench",
+   "name": "Жим лёжа узким хватом",
+   "category": "Жим",
+   "muscles": [
+    "трицепс",
+    "грудь"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "pause_bench",
+   "name": "Жим лёжа с паузой",
+   "category": "Жим",
+   "muscles": [
+    "грудь",
+    "трицепс"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "incline_bench",
+   "name": "Жим штанги на наклонной скамье",
+   "category": "Жим",
+   "muscles": [
+    "грудь",
+    "плечи"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "decline_bench",
+   "name": "Жим штанги под углом вниз",
+   "category": "Жим",
+   "muscles": [
+    "грудь"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "dumbbell_bench",
+   "name": "Жим гантелей лёжа",
+   "category": "Жим",
+   "muscles": [
+    "грудь",
+    "трицепс"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "incline_dumbbell_press",
+   "name": "Жим гантелей на наклонной скамье",
+   "category": "Жим",
+   "muscles": [
+    "грудь",
+    "плечи"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "floor_press",
+   "name": "Жим лёжа с пола",
+   "category": "Жим",
+   "muscles": [
+    "трицепс",
+    "грудь"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "machine_chest_press",
+   "name": "Жим в тренажёре для груди",
+   "category": "Жим",
+   "muscles": [
+    "грудь"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "overhead_press",
+   "name": "Жим штанги стоя",
+   "category": "Жим",
+   "muscles": [
+    "плечи",
+    "трицепс"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "seated_dumbbell_press",
+   "name": "Жим гантелей сидя",
+   "category": "Жим",
+   "muscles": [
+    "плечи"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "arnold_press",
+   "name": "Жим Арнольда",
+   "category": "Жим",
+   "muscles": [
+    "плечи"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "push_press",
+   "name": "Швунг жимовой",
+   "category": "Жим",
+   "muscles": [
+    "плечи",
+    "ноги"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "dips",
+   "name": "Отжимания на брусьях",
+   "category": "Жим",
+   "muscles": [
+    "трицепс",
+    "грудь"
+   ],
+   "equipment": "брусья",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "pushup",
+   "name": "Отжимания от пола",
+   "category": "Жим",
+   "muscles": [
+    "грудь",
+    "трицепс"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "dumbbell_fly",
+   "name": "Разведение гантелей лёжа",
+   "category": "Жим",
+   "muscles": [
+    "грудь"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "cable_crossover",
+   "name": "Сведение рук в кроссовере",
+   "category": "Жим",
+   "muscles": [
+    "грудь"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "pec_deck",
+   "name": "Сведение рук в тренажёре (бабочка)",
+   "category": "Жим",
+   "muscles": [
+    "грудь"
+   ],
+   "equipment": "тренажёр",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "pullover",
+   "name": "Пуловер",
+   "category": "Жим",
+   "muscles": [
+    "грудь",
+    "спина"
+   ],
+   "equipment": "гантель",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "romanian_deadlift",
+   "name": "Румынская тяга",
+   "category": "Тяга",
+   "muscles": [
+    "бицепс бедра",
+    "ягодицы"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "stiff_leg_deadlift",
+   "name": "Тяга на прямых ногах",
+   "category": "Тяга",
+   "muscles": [
+    "бицепс бедра",
+    "спина"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "trap_bar_deadlift",
+   "name": "Тяга с трэп-грифом",
+   "category": "Тяга",
+   "muscles": [
+    "ноги",
+    "спина"
+   ],
+   "equipment": "трэп-гриф",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "deficit_deadlift",
+   "name": "Становая тяга с дефицита",
+   "category": "Тяга",
+   "muscles": [
+    "спина",
+    "ноги"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "rack_pull",
+   "name": "Тяга из стоек",
+   "category": "Тяга",
+   "muscles": [
+    "спина",
+    "трапеции"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "pullup",
+   "name": "Подтягивания",
+   "category": "Тяга",
+   "muscles": [
+    "спина",
+    "бицепс"
+   ],
+   "equipment": "турник",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "chinup",
+   "name": "Подтягивания обратным хватом",
+   "category": "Тяга",
+   "muscles": [
+    "бицепс",
+    "спина"
+   ],
+   "equipment": "турник",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "wide_pullup",
+   "name": "Подтягивания широким хватом",
+   "category": "Тяга",
+   "muscles": [
+    "широчайшие"
+   ],
+   "equipment": "турник",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "lat_pulldown",
+   "name": "Тяга верхнего блока",
+   "category": "Тяга",
+   "muscles": [
+    "широчайшие"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "barbell_row",
+   "name": "Тяга штанги в наклоне",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "pendlay_row",
+   "name": "Тяга Пендлея",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "dumbbell_row",
+   "name": "Тяга гантели одной рукой",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "гантель",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "tbar_row",
+   "name": "Тяга Т-грифа",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "seated_cable_row",
+   "name": "Горизонтальная тяга блока",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "chest_supported_row",
+   "name": "Тяга с упором грудью",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "inverted_row",
+   "name": "Австралийские подтягивания",
+   "category": "Тяга",
+   "muscles": [
+    "спина"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "shrug",
+   "name": "Шраги",
+   "category": "Тяга",
+   "muscles": [
+    "трапеции"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "back_extension",
+   "name": "Гиперэкстензия",
+   "category": "Тяга",
+   "muscles": [
+    "поясница",
+    "ягодицы"
+   ],
+   "equipment": "тренажёр",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "good_morning",
+   "name": "Наклоны со штангой (гудмонинг)",
+   "category": "Тяга",
+   "muscles": [
+    "поясница",
+    "бицепс бедра"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "lateral_raise",
+   "name": "Махи гантелями в стороны",
+   "category": "Плечи",
+   "muscles": [
+    "плечи"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "front_raise",
+   "name": "Подъём гантелей перед собой",
+   "category": "Плечи",
+   "muscles": [
+    "плечи"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "rear_delt_fly",
+   "name": "Разведение гантелей в наклоне",
+   "category": "Плечи",
+   "muscles": [
+    "задние дельты"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "face_pull",
+   "name": "Тяга к лицу",
+   "category": "Плечи",
+   "muscles": [
+    "задние дельты",
+    "трапеции"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "upright_row",
+   "name": "Тяга штанги к подбородку",
+   "category": "Плечи",
+   "muscles": [
+    "плечи",
+    "трапеции"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "cable_lateral_raise",
+   "name": "Махи в сторону на блоке",
+   "category": "Плечи",
+   "muscles": [
+    "плечи"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "landmine_press",
+   "name": "Жим от плеча с упором (landmine)",
+   "category": "Плечи",
+   "muscles": [
+    "плечи"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "barbell_curl",
+   "name": "Подъём штанги на бицепс",
+   "category": "Руки",
+   "muscles": [
+    "бицепс"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "dumbbell_curl",
+   "name": "Подъём гантелей на бицепс",
+   "category": "Руки",
+   "muscles": [
+    "бицепс"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "hammer_curl",
+   "name": "Молотки",
+   "category": "Руки",
+   "muscles": [
+    "бицепс",
+    "предплечья"
+   ],
+   "equipment": "гантели",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "preacher_curl",
+   "name": "Подъём на скамье Скотта",
+   "category": "Руки",
+   "muscles": [
+    "бицепс"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "concentration_curl",
+   "name": "Концентрированный подъём",
+   "category": "Руки",
+   "muscles": [
+    "бицепс"
+   ],
+   "equipment": "гантель",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "cable_curl",
+   "name": "Сгибания на блоке",
+   "category": "Руки",
+   "muscles": [
+    "бицепс"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "reverse_curl",
+   "name": "Подъём штанги обратным хватом",
+   "category": "Руки",
+   "muscles": [
+    "предплечья"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "wrist_curl",
+   "name": "Сгибания запястий",
+   "category": "Руки",
+   "muscles": [
+    "предплечья"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "skullcrusher",
+   "name": "Французский жим лёжа",
+   "category": "Руки",
+   "muscles": [
+    "трицепс"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "triceps_pushdown",
+   "name": "Разгибание рук на блоке",
+   "category": "Руки",
+   "muscles": [
+    "трицепс"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "overhead_triceps_extension",
+   "name": "Французский жим сидя",
+   "category": "Руки",
+   "muscles": [
+    "трицепс"
+   ],
+   "equipment": "гантель",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "crunch",
+   "name": "Скручивания",
+   "category": "Кор и пресс",
+   "muscles": [
+    "пресс"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "sit_up",
+   "name": "Подъём корпуса",
+   "category": "Кор и пресс",
+   "muscles": [
+    "пресс"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "hanging_leg_raise",
+   "name": "Подъём ног в висе",
+   "category": "Кор и пресс",
+   "muscles": [
+    "пресс"
+   ],
+   "equipment": "турник",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "hanging_knee_raise",
+   "name": "Подъём коленей в висе",
+   "category": "Кор и пресс",
+   "muscles": [
+    "пресс"
+   ],
+   "equipment": "турник",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "plank",
+   "name": "Планка",
+   "category": "Кор и пресс",
+   "muscles": [
+    "кор"
+   ],
+   "equipment": "свой вес",
+   "kind": "time",
+   "lift": null
+  },
+  {
+   "id": "side_plank",
+   "name": "Боковая планка",
+   "category": "Кор и пресс",
+   "muscles": [
+    "кор"
+   ],
+   "equipment": "свой вес",
+   "kind": "time",
+   "lift": null
+  },
+  {
+   "id": "ab_wheel",
+   "name": "Ролик для пресса",
+   "category": "Кор и пресс",
+   "muscles": [
+    "пресс",
+    "кор"
+   ],
+   "equipment": "ролик",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "russian_twist",
+   "name": "Русские скручивания",
+   "category": "Кор и пресс",
+   "muscles": [
+    "пресс"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "cable_woodchop",
+   "name": "Дровосек на блоке",
+   "category": "Кор и пресс",
+   "muscles": [
+    "кор"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "dead_bug",
+   "name": "Мёртвый жук",
+   "category": "Кор и пресс",
+   "muscles": [
+    "кор"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "pallof_press",
+   "name": "Жим Паллофа",
+   "category": "Кор и пресс",
+   "muscles": [
+    "кор"
+   ],
+   "equipment": "блок",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "snatch",
+   "name": "Рывок",
+   "category": "Олимпийское",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "clean_and_jerk",
+   "name": "Толчок",
+   "category": "Олимпийское",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "clean",
+   "name": "Взятие на грудь",
+   "category": "Олимпийское",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "power_clean",
+   "name": "Взятие на грудь в стойку",
+   "category": "Олимпийское",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "hang_clean",
+   "name": "Взятие на грудь из виса",
+   "category": "Олимпийское",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "push_jerk",
+   "name": "Швунг толчковый",
+   "category": "Олимпийское",
+   "muscles": [
+    "плечи",
+    "ноги"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "overhead_squat",
+   "name": "Приседания со штангой над головой",
+   "category": "Олимпийское",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "штанга",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "kettlebell_swing",
+   "name": "Махи гирей",
+   "category": "Гири и функционал",
+   "muscles": [
+    "ягодицы",
+    "спина"
+   ],
+   "equipment": "гиря",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "kettlebell_snatch",
+   "name": "Рывок гири",
+   "category": "Гири и функционал",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "гиря",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "turkish_getup",
+   "name": "Турецкий подъём",
+   "category": "Гири и функционал",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "гиря",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "farmers_walk",
+   "name": "Прогулка фермера",
+   "category": "Гири и функционал",
+   "muscles": [
+    "предплечья",
+    "кор"
+   ],
+   "equipment": "гантели",
+   "kind": "distance",
+   "lift": null
+  },
+  {
+   "id": "sled_push",
+   "name": "Толкание саней",
+   "category": "Гири и функционал",
+   "muscles": [
+    "ноги"
+   ],
+   "equipment": "сани",
+   "kind": "distance",
+   "lift": null
+  },
+  {
+   "id": "battle_ropes",
+   "name": "Канаты",
+   "category": "Гири и функционал",
+   "muscles": [
+    "плечи",
+    "кор"
+   ],
+   "equipment": "канаты",
+   "kind": "time",
+   "lift": null
+  },
+  {
+   "id": "box_jump",
+   "name": "Прыжки на тумбу",
+   "category": "Гири и функционал",
+   "muscles": [
+    "ноги"
+   ],
+   "equipment": "тумба",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "burpee",
+   "name": "Бёрпи",
+   "category": "Гири и функционал",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "свой вес",
+   "kind": "bodyweight",
+   "lift": null
+  },
+  {
+   "id": "medicine_ball_slam",
+   "name": "Броски медбола в пол",
+   "category": "Гири и функционал",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "медбол",
+   "kind": "weight",
+   "lift": null
+  },
+  {
+   "id": "running",
+   "name": "Бег",
+   "category": "Кардио",
+   "muscles": [
+    "ноги"
+   ],
+   "equipment": "свой вес",
+   "kind": "distance",
+   "lift": null
+  },
+  {
+   "id": "incline_walk",
+   "name": "Ходьба в горку",
+   "category": "Кардио",
+   "muscles": [
+    "ноги"
+   ],
+   "equipment": "дорожка",
+   "kind": "distance",
+   "lift": null
+  },
+  {
+   "id": "cycling",
+   "name": "Велотренажёр",
+   "category": "Кардио",
+   "muscles": [
+    "ноги"
+   ],
+   "equipment": "велотренажёр",
+   "kind": "distance",
+   "lift": null
+  },
+  {
+   "id": "rowing_machine",
+   "name": "Гребной тренажёр",
+   "category": "Кардио",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "тренажёр",
+   "kind": "distance",
+   "lift": null
+  },
+  {
+   "id": "jump_rope",
+   "name": "Скакалка",
+   "category": "Кардио",
+   "muscles": [
+    "ноги"
+   ],
+   "equipment": "скакалка",
+   "kind": "time",
+   "lift": null
+  },
+  {
+   "id": "swimming",
+   "name": "Плавание",
+   "category": "Кардио",
+   "muscles": [
+    "всё тело"
+   ],
+   "equipment": "бассейн",
+   "kind": "distance",
+   "lift": null
+  }
+ ]
+}
