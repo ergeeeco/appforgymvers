@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
 import requests, certifi
 os.environ.setdefault('SSL_CERT_FILE', certifi.where())
+from kivy.config import Config
+Config.set('graphics', 'multisamples', '0')
 from kivy.animation import Animation
 from kivy.app import App
 from kivy.clock import Clock
@@ -250,6 +252,18 @@ KV = '''
         Ellipse:
             pos: self.pos
             size: self.size
+<ExRow>:
+    size_hint_y: None
+    height: dp(64)
+    padding: dp(14), dp(8)
+    spacing: dp(10)
+    canvas.before:
+        Color:
+            rgba: app.c_sec if self.sel else app.c_hi
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(16)]
 <Indicator>:
     size_hint: None, None
     size: dp(64), dp(32)
@@ -322,17 +336,26 @@ def icon_tex(name):
     return tex
 
 
+_POOL = ThreadPoolExecutor(max_workers=4)
+
+
 def load_tex(src, done):
-    """Загружает картинку (адрес или файл) и вызывает done(текстура, размытая_текстура) в главном потоке."""
+    """Загружает картинку (адрес или файл) и вызывает done(текстура, размытая_текстура) в главном потоке.
+    Скачивание и декодирование идут в фоне, в главном потоке остаётся только загрузка в видеопамять."""
     if src in _TEX:
         return done(*_TEX[src])
 
-    def make(data):
+    def prepare():
         try:
+            data = None
+            if src.startswith('http'):
+                r = requests.get(src, timeout=30)
+                r.raise_for_status()
+                data = r.content
             ext = os.path.splitext(src.split('?')[0])[1].lstrip('.') or 'jpg'
-            tex = CoreImage(io.BytesIO(data), ext=ext).texture if data else CoreImage(src).texture
+            ci = CoreImage(io.BytesIO(data), ext=ext) if data else CoreImage(src)
         except Exception:
-            return done(None, None)
+            return None, None
         blur = None
         try:  # маленькая размытая копия: фон для фото, которые не влезли в рамку
             from PIL import Image as PI, ImageFilter
@@ -341,28 +364,32 @@ def load_tex(src, done):
             im = im.convert('RGB').resize((24, 24)).filter(ImageFilter.GaussianBlur(2))
             buf = io.BytesIO()
             im.save(buf, 'PNG')
-            buf.seek(0)
-            blur = CoreImage(buf, ext='png').texture
-            blur.mag_filter = blur.min_filter = 'linear'
+            blur = buf.getvalue()
         except Exception:
             pass
+        return ci, blur
+
+    def finish(res):
+        ci, blur = res
+        if ci is None:
+            return done(None, None)
+        try:
+            tex = ci.texture
+        except Exception:
+            return done(None, None)
+        bt = None
+        if blur:
+            try:
+                bt = CoreImage(io.BytesIO(blur), ext='png').texture
+                bt.mag_filter = bt.min_filter = 'linear'
+            except Exception:
+                bt = None
         if len(_TEX) > 60:
             _TEX.clear()
-        _TEX[src] = (tex, blur)
-        done(tex, blur)
+        _TEX[src] = (tex, bt)
+        done(tex, bt)
 
-    if not src.startswith('http'):
-        return make(None)
-
-    def run():
-        try:
-            r = requests.get(src, timeout=30)
-            r.raise_for_status()
-            data = r.content
-        except Exception:
-            data = False
-        Clock.schedule_once(lambda dt_: make(data) if data else done(None, None))
-    threading.Thread(target=run, daemon=True).start()
+    _POOL.submit(lambda: (lambda res: Clock.schedule_once(lambda dt_: finish(res)))(prepare()))
 
 
 class Pill(BoxLayout): pass
@@ -435,6 +462,11 @@ class Icon(Widget):
             elif n == 'close':
                 Line(points=fl(P(.2, .2), P(.8, .8)), width=lw)
                 Line(points=fl(P(.8, .2), P(.2, .8)), width=lw)
+            elif n == 'barbell':
+                Line(points=fl(P(.06, .5), P(.94, .5)), width=lw)
+                for u0, u1, v0 in ((.2, .1, .22), (.32, .1, .3)):
+                    Line(rounded_rectangle=(x + u0 * w, y + v0 * h, u1 * w, (1 - 2 * v0) * h, dp(2)), width=lw)
+                    Line(rounded_rectangle=(x + (1 - u0 - u1) * w, y + v0 * h, u1 * w, (1 - 2 * v0) * h, dp(2)), width=lw)
             elif n == 'bell':
                 Line(bezier=fl(P(.2, .32), P(.2, .9), P(.38, .96), P(.5, .96)), width=lw)
                 Line(bezier=fl(P(.5, .96), P(.62, .96), P(.8, .9), P(.8, .32)), width=lw)
@@ -515,7 +547,8 @@ class Dumbbell(Widget):
     def __init__(self, **kw):
         kw.setdefault('size', (dp(44), dp(44)))
         super().__init__(size_hint=(None, None), **kw)
-        self.bind(pos=self.draw, size=self.draw, angle=self.draw)
+        self._rot = None
+        self.bind(pos=self.draw, size=self.draw, angle=self._set_angle)
         self.draw()
 
     def on_parent(self, w, p):
@@ -531,13 +564,17 @@ class Dumbbell(Widget):
         an.bind(on_complete=self._spin)
         an.start(self)
 
+    def _set_angle(self, *a):   # поворот меняется у готовой инструкции, холст не перерисовывается
+        if self._rot is not None:
+            self._rot.angle = self.angle
+
     def draw(self, *a):
         self.canvas.clear()
         cx, cy = self.center
         k = min(self.size)
         with self.canvas:
             PushMatrix()
-            Rotate(angle=self.angle, origin=(cx, cy))
+            self._rot = Rotate(angle=self.angle, origin=(cx, cy))
             Color(*MU)
             RoundedRectangle(pos=(cx - .36 * k, cy - .04 * k), size=(.72 * k, .08 * k), radius=[.04 * k])
             Color(*ACC)
@@ -555,6 +592,7 @@ class Photo(FloatLayout):
     def __init__(self, source='', fit='adaptive', ratio=None, **kw):
         super().__init__(**kw)
         self.fit, self.ratio, self.tex, self.blur = fit, ratio, None, None
+        self._crops = {}
         self.dumb = Dumbbell(size=(dp(40), dp(40)), pos_hint={'center_x': .5, 'center_y': .5})
         self.bind(pos=self.draw, size=self.draw)
         if fit == 'adaptive':
@@ -576,6 +614,7 @@ class Photo(FloatLayout):
         if self.dumb.parent:
             self.remove_widget(self.dumb)
         self.tex = self.blur = None
+        self._crops = {}
         self.draw()
         if source:
             self.add_widget(self.dumb)
@@ -588,11 +627,16 @@ class Photo(FloatLayout):
         self._adapt()
         self.draw()
 
-    @staticmethod
-    def _crop(t, w, h):
-        ta, ba = t.width / t.height, w / h
-        rw, rh = (t.height * ba, t.height) if ta > ba else (t.width, t.width / ba)
-        return t.get_region((t.width - rw) / 2, (t.height - rh) / 2, rw, rh)
+    def _crop(self, t, w, h):
+        key = (id(t), round(w), round(h))
+        c = self._crops.get(key)
+        if c is None:
+            if len(self._crops) > 6:
+                self._crops.clear()
+            ta, ba = t.width / t.height, w / h
+            rw, rh = (t.height * ba, t.height) if ta > ba else (t.width, t.width / ba)
+            c = self._crops[key] = t.get_region((t.width - rw) / 2, (t.height - rh) / 2, rw, rh)
+        return c
 
     def draw(self, *a):
         self.canvas.before.clear()
@@ -703,8 +747,13 @@ class D:  # состояние
     P, FO, PO, FM = {}, [], [], []
     LK, CM = [], []
     loading = False
+    bests = {}
     busy = 0
     ptab = 'form'
+    rev = 0
+    fol, prs = set(), set()
+    nfol, nfing, likes, cmts, byuser, formsby = {}, {}, {}, {}, {}, {}
+    _notes, _notes_rev = [], -1
     scope = 'all'
     seen = ''
     known, known_init = set(), False
@@ -845,17 +894,180 @@ def tier(d):
 
 g = lambda n: ('%g' % n) if n else '—'
 name_of = lambda u: (D.P.get(u) or {}).get('username') or 'атлет'
-is_f = lambda u: any(f['follower'] == D.uid and f['following'] == u for f in D.FO)
-followers = lambda u: sum(1 for f in D.FO if f['following'] == u)
+is_f = lambda u: u in D.fol
+followers = lambda u: D.nfol.get(u, 0)
 media_url = lambda p: BASE + '/storage/v1/object/public/media/' + p
 
 
+def _load_catalog():
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'exercises.json'), encoding='utf-8') as fh:
+            d = json.load(fh)
+        return d['exercises'], d.get('kinds', {})
+    except Exception:
+        return [], {}
+
+
+EXLIST, EXKINDS = _load_catalog()
+EXBY = {e['id']: e for e in EXLIST}
+EXCATS = list(dict.fromkeys(e['category'] for e in EXLIST))
+norm = lambda t: str(t).lower().replace('ё', 'е').strip()
+EXNAME = {norm(e['name']): e['id'] for e in EXLIST}
+# старые записи, где упражнение было написано вручную
+EXNAME.update({'присед': 'squat', 'приседания': 'squat', 'жим': 'bench_press', 'становая': 'deadlift', 'жим стоя': 'overhead_press'})
+
+
+def exid_of(w):
+    """Идентификатор упражнения поста (для старых постов определяется по названию)."""
+    return w.get('exercise_id') or EXNAME.get(norm(w.get('ex') or ''), '')
+
+
+def fnum(t):
+    try:
+        v = float(str(t).replace(',', '.'))
+        return v if v > 0 else 0
+    except Exception:
+        return 0
+
+
+def e1rm(kg, reps):
+    """Расчётный максимум на 1 повтор (формула Эпли), с шагом 0,5 кг."""
+    return round((kg * (1 + reps / 30) if reps > 1 else kg) * 2) / 2
+
+
+def fmt_sec(t):
+    return f'{t // 60} мин {t % 60} сек' if t >= 60 else f'{t} сек'
+
+
+def sets_of(w):
+    sd = w.get('sets_data')
+    if isinstance(sd, list) and sd:
+        return sd
+    if w.get('reps') or w.get('kg'):
+        return [{'kg': w.get('kg') or 0, 'reps': w.get('reps') or 0}] * (w.get('sets') or 1)
+    return []
+
+
+def kind_of(w):
+    return (EXBY.get(exid_of(w)) or {}).get('kind', 'weight')
+
+
+def summary_cols(kind, sets):
+    """Лучший подход для колонок kg, reps в базе (по ним строятся рекорды и рейтинги)."""
+    if kind == 'weight':
+        t = max(sets, key=lambda x: (x['kg'], x['reps']))
+        return t['kg'], t['reps']
+    if kind == 'bodyweight':
+        t = max(sets, key=lambda x: (x['reps'], x['kg']))
+        return t['kg'], t['reps']
+    if kind == 'time':
+        return 0, max(x['sec'] for x in sets)
+    return 0, max(x['m'] for x in sets)
+
+
+def summarize(kind, sets):
+    if not sets:
+        return '[color=99a1a8]Впишите хотя бы один подход[/color]'
+    if kind == 'weight':
+        t = max(sets, key=lambda x: (x['kg'], x['reps']))
+        out = f"Лучший подход: [b]{g(t['kg'])} кг × {t['reps']}[/b]"
+        if 1 < t['reps'] <= 15:
+            out += f" · 1ПМ ≈ [b]{g(e1rm(t['kg'], t['reps']))} кг[/b]"
+        return out + f" · объём {g(sum(x['kg'] * x['reps'] for x in sets))} кг"
+    if kind == 'bodyweight':
+        return f"Всего повторов: [b]{sum(x['reps'] for x in sets)}[/b]"
+    if kind == 'time':
+        return f"Всего: [b]{fmt_sec(sum(x['sec'] for x in sets))}[/b]"
+    return f"Всего: [b]{g(sum(x['m'] for x in sets))} м[/b]"
+
+
+def chips_of(w):
+    k, sd, out = kind_of(w), sets_of(w), []
+    if not sd:
+        return out
+    if k == 'weight':
+        t = max(sd, key=lambda x: (x.get('kg', 0), x.get('reps', 0)))
+        out.append(f"{g(t.get('kg', 0))} кг × {t.get('reps', 0)}")
+        if len(sd) > 1:
+            out.append(f'{len(sd)} подх.')
+        vol = sum((x.get('kg') or 0) * (x.get('reps') or 0) for x in sd)
+        if vol:
+            out.append(f'объём {g(vol)} кг')
+        if 1 < t.get('reps', 0) <= 15 and t.get('kg'):
+            out.append(f"1ПМ ≈ {g(e1rm(t['kg'], t['reps']))} кг")
+    elif k == 'bodyweight':
+        out.append(f"{sum(x.get('reps', 0) for x in sd)} повт.")
+        if len(sd) > 1:
+            out.append(f'{len(sd)} подх.')
+        extra = max((x.get('kg') or 0) for x in sd)
+        if extra:
+            out.append(f'до +{g(extra)} кг')
+    elif k == 'time':
+        out.append(fmt_sec(sum(x.get('sec', 0) for x in sd)))
+        if len(sd) > 1:
+            out.append(f'{len(sd)} подх.')
+    else:
+        out.append(f"{g(sum(x.get('m', 0) for x in sd))} м")
+        tm = sum(x.get('sec', 0) for x in sd)
+        if tm:
+            out.append(fmt_sec(tm))
+    return out
+
+
+def sets_line(w):
+    sd = sets_of(w)
+    if kind_of(w) == 'weight' and len(sd) > 1:
+        return 'Подходы: ' + ' · '.join(f"{g(x.get('kg', 0))}×{x.get('reps', 0)}" for x in sd[:12])
+    return ''
+
+
+def reindex():
+    """Строит индексы по загруженным данным: вместо перебора всех списков на каждый пост (медленно)."""
+    from collections import Counter, defaultdict
+    D.rev += 1
+    D.fol = {f['following'] for f in D.FO if f['follower'] == D.uid}
+    D.nfol = Counter(f['following'] for f in D.FO)
+    D.nfing = Counter(f['follower'] for f in D.FO)
+    D.likes = defaultdict(list)
+    for x in D.LK:
+        D.likes[x['post_id']].append(x['user_id'])
+    D.cmts = defaultdict(list)
+    for x in D.CM:
+        D.cmts[x['post_id']].append(x)
+    for lst in D.cmts.values():
+        lst.sort(key=lambda x: x['created_at'])
+    D.byuser, D.formsby = defaultdict(list), defaultdict(list)
+    for w in D.PO:
+        D.byuser[w['user_id']].append(w)
+    for w in D.FM:
+        D.formsby[w['user_id']].append(w)
+    D.prs = set()   # личные рекорды: вес больше всех прежних подходов к тому же упражнению
+    grp = defaultdict(list)
+    for w in D.PO:
+        grp[(w['user_id'], exid_of(w) or w['ex'].lower())].append(w)
+    for lst in grp.values():
+        best = 0
+        for i, w in enumerate(sorted(lst, key=lambda x: x['created_at'])):
+            kg = w.get('kg') or 0
+            if i and kg and kg > best:
+                D.prs.add(w['id'])
+            best = max(best, kg)
+    D.bests = {}    # (пользователь, упражнение) -> лучший подход, расчётный максимум, число тренировок
+    for w in D.PO:
+        k = exid_of(w)
+        if not k:
+            continue
+        kg, reps = w.get('kg') or 0, w.get('reps') or 0
+        b = D.bests.setdefault((w['user_id'], k), {'kg': 0, 'reps': 0, 'e1rm': 0, 'n': 0})
+        b['n'] += 1
+        if (kg, reps) > (b['kg'], b['reps']) if kind_of(w) == 'weight' else reps > b['reps']:
+            b['kg'], b['reps'] = kg, reps
+        if kind_of(w) == 'weight':
+            b['e1rm'] = max(b['e1rm'], e1rm(kg, reps))
+
+
 def is_pr(w):
-    if not w.get('kg'):
-        return False
-    pr = [o for o in D.PO if o['user_id'] == w['user_id'] and o['ex'].lower() == w['ex'].lower()
-          and o['created_at'] < w['created_at']]
-    return bool(pr) and not any((o.get('kg') or 0) >= w['kg'] for o in pr)
+    return w['id'] in D.prs
 
 
 def inp(hint, text='', num=False, **kw):
@@ -899,6 +1111,7 @@ def toggle_follow(u, btn=None):
         D.FO.append({'follower': D.uid, 'following': u})
         fn = lambda: rq('POST', '/rest/v1/follows', json={'follower': D.uid, 'following': u},
                         headers={'Prefer': 'return=minimal'})
+    reindex()
     app = App.get_running_app()
     on = is_f(u)
     if btn:
@@ -978,20 +1191,17 @@ def post_card(w, cm=True):
             c.add_widget(ph)
     sl = StackLayout(size_hint_y=None, spacing=dp(6))
     sl.bind(minimum_height=sl.setter('height'))
-    if w.get('kg'):
-        sl.add_widget(Chip(text=f"{g(w['kg'])} кг"))
-    if w.get('reps'):
-        sl.add_widget(Chip(text=f"{w['reps']} повт."))
-    if w.get('sets'):
-        sl.add_widget(Chip(text=f"{w['sets']} подх."))
-    if w.get('kg') and w.get('reps') and w.get('sets'):
-        sl.add_widget(Chip(text=f"объём {g(w['kg'] * w['reps'] * w['sets'])} кг"))
+    for t in chips_of(w):
+        sl.add_widget(Chip(text=t))
     if is_pr(w):
         sl.add_widget(Chip(text='Личный рекорд', hot=True))
     c.add_widget(sl)
+    sline = sets_line(w)
+    if sline:
+        c.add_widget(L(text=f'[color=99a1a8][size=12sp]{esc(sline)}[/size][/color]'))
     pid = w['id']
-    likers = [x['user_id'] for x in D.LK if x['post_id'] == pid]
-    cms = sorted((x for x in D.CM if x['post_id'] == pid), key=lambda x: x['created_at'])
+    likers = D.likes.get(pid, [])
+    cms = D.cmts.get(pid, [])
     row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(8))
     pill = Pill(size_hint=(None, None), height=dp(40), pos_hint={'center_y': .5})
     pill.bind(minimum_width=pill.setter('width'))
@@ -1020,20 +1230,6 @@ def post_card(w, cm=True):
     return c
 
 
-def notice(text):
-    mv = ModalView(size_hint=(.9, None), height=dp(260), background='', background_color=(0, 0, 0, .6))
-    c = Card(padding=dp(16), spacing=dp(14), pos_hint={'center_x': .5, 'center_y': .5})
-    c.add_widget(L(text=f'[size=15sp]{esc(text)}[/size]'))
-    row = BoxLayout(size_hint_y=None, height=dp(48))
-    close = IconBtn('close', 'tonal', size=48)
-    close.bind(on_release=lambda *a: mv.dismiss())
-    for wgt in (Widget(), close, Widget()):
-        row.add_widget(wgt)
-    c.add_widget(row)
-    mv.add_widget(c)
-    mv.open()
-
-
 def confirm(text, yes):
     mv = ModalView(size_hint=(.86, None), height=dp(180), background='', background_color=(0, 0, 0, .6))
     c = Card(padding=dp(16), spacing=dp(14), pos_hint={'center_x': .5, 'center_y': .5})
@@ -1052,6 +1248,7 @@ def confirm(text, yes):
 def delete_post(table, w):
     D.PO = [x for x in D.PO if x is not w]
     D.FM = [x for x in D.FM if x is not w]
+    reindex()
     App.get_running_app().render()
 
     def f():
@@ -1072,7 +1269,7 @@ def greeting():
 
 
 def streak(u):
-    days = sorted({w['created_at'][:10] for w in D.PO if w['user_id'] == u}, reverse=True)
+    days = sorted({w['created_at'][:10] for w in D.byuser.get(u, [])}, reverse=True)
     if not days:
         return 0
     cur = dt.date.fromisoformat(days[0])
@@ -1158,6 +1355,23 @@ def v_auth(_):
     return scroll([c])
 
 
+def paged(items, build, box, page=8):
+    """Добавляет карточки порциями: сначала page штук, остальные по кнопке «Показать ещё» (экран не тормозит)."""
+    pos = {'n': 0}
+    more = Btn(text='Показать ещё', bg=CARD2, fg=TX)
+
+    def add(*a):
+        if more.parent:
+            box.remove_widget(more)
+        for w in items[pos['n']:pos['n'] + page]:
+            box.add_widget(build(w))
+        pos['n'] += page
+        if pos['n'] < len(items):
+            box.add_widget(more)
+    more.bind(on_release=add)
+    add()
+
+
 def v_feed(_):
     app = App.get_running_app()
     comp = Card()
@@ -1170,7 +1384,7 @@ def v_feed(_):
     comp.add_widget(ab)
     rows = sorted(((u, stat(p)[4]) for u, p in D.P.items() if stat(p)[3]), key=lambda x: -x[1])
     place = next((i for i, (u, _d) in enumerate(rows, 1) if u == D.uid), None)
-    prs = [w for w in D.PO if w['user_id'] == D.uid and is_pr(w)]
+    prs = [w for w in D.byuser.get(D.uid, []) if is_pr(w)]
     n = streak(D.uid)
     ex = prs[0]['ex'] if prs else ''
     minis = [mini('Серия', f'{n} дн.', 'Так держать' if n else 'Начните!', lambda: app.go('user', D.uid, root=True)),
@@ -1180,8 +1394,10 @@ def v_feed(_):
     for m in minis:
         hs.add_widget(m)
     items = [w for w in D.PO if D.scope == 'all' or w['user_id'] == D.uid or is_f(w['user_id'])]
-    ch = [comp, hs, scope_bar()]
-    ch += [post_card(w) for w in items[:40]]
+    box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(12))
+    box.bind(minimum_height=box.setter('height'))
+    paged(items, post_card, box)
+    ch = [comp, hs, scope_bar(), box]
     if not items:
         ch.append(L(text='[color=99a1a8]Здесь пока пусто. Добавьте тренировку или подпишитесь на атлетов.[/color]'))
     return scroll(ch)
@@ -1216,8 +1432,8 @@ def v_user(u):
     u = u or D.uid
     p = D.P.get(u) or {}
     sq, bp, dl, tot, d = stat(p)
-    posts = [w for w in D.PO if w['user_id'] == u]
-    forms = [w for w in D.FM if w['user_id'] == u]
+    posts = D.byuser.get(u, [])
+    forms = D.formsby.get(u, [])
     top = Card()
     r = BoxLayout(size_hint_y=None, height=dp(80))
     r.add_widget(Widget())
@@ -1229,7 +1445,7 @@ def v_user(u):
     srow.add_widget(stat_card(len(posts), 'Тренировки'))
     srow.add_widget(stat_card(streak(u), 'Серия, дн.'))
     srow.add_widget(stat_card(followers(u), 'Подписчики', lambda: app.go('people', (u, 'followers'))))
-    srow.add_widget(stat_card(sum(1 for f in D.FO if f['follower'] == u), 'Подписки', lambda: app.go('people', (u, 'following'))))
+    srow.add_widget(stat_card(D.nfing.get(u, 0), 'Подписки', lambda: app.go('people', (u, 'following'))))
     if p.get('bio'):
         top.add_widget(L(text=esc(p['bio']), halign='center'))
     top.add_widget(L(text=(f"{tier(d)[1]} · {d:.1f} DOTS · сумма {g(tot)} кг" if tot else '[color=99a1a8]Пока без рейтинга[/color]'), halign='center'))
@@ -1260,9 +1476,7 @@ def v_user(u):
         th.bind(on_release=lambda *a: app.go('theme'))
         pb = Btn(text='Фоновые уведомления: ' + ('вкл' if load_settings().get('push', True) else 'выкл'), bg=CARD2, fg=TX)
         pb.bind(on_release=lambda *a: app.toggle_push(pb))
-        pc = Btn(text='Проверить push-уведомления', bg=CARD2, fg=TX)
-        pc.bind(on_release=lambda *a: app.check_push())
-        ch += [e, th, pb, pc, o]
+        ch += [e, th, pb, o]
     # две вкладки профиля: актуальная форма и тренировки (содержимое меняется на месте, прокрутка не сбрасывается)
     sec = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(12))
     sec.bind(minimum_height=sec.setter('height'))
@@ -1307,8 +1521,7 @@ def v_user(u):
         sec.add_widget(wrap)
 
     def fill_posts():
-        for w in posts[:15]:
-            sec.add_widget(post_card(w))
+        paged(posts, post_card, sec)
         if not posts:
             sec.add_widget(L(text='[color=99a1a8]Тренировок пока нет.[/color]'))
 
@@ -1425,65 +1638,309 @@ def upload(path, kind=None):
     return name, 'v' if video else 'i', dims[0], dims[1]
 
 
+class ExRow(ButtonBehavior, BoxLayout):
+    sel = BooleanProperty(False)
+
+
+def best_label(e):
+    b = D.bests.get((D.uid, e['id']))
+    if not b:
+        return ''
+    k = e['kind']
+    if k == 'weight' and b['kg']:
+        return f"{g(b['kg'])} кг"
+    if k == 'bodyweight' and b['reps']:
+        return f"{b['reps']} повт."
+    if k == 'time' and b['reps']:
+        return fmt_sec(b['reps'])
+    if k == 'distance' and b['reps']:
+        return f"{g(b['reps'])} м"
+    return ''
+
+
+def recent_exercises(n=6):
+    out, seen = [], set()
+    for w in sorted(D.byuser.get(D.uid, []), key=lambda x: x['created_at'], reverse=True):
+        e = EXBY.get(exid_of(w))
+        if e and e['id'] not in seen:
+            seen.add(e['id'])
+            out.append(e)
+            if len(out) >= n:
+                break
+    return out
+
+
+def ex_row(e, selected, on_pick):
+    r = ExRow(sel=selected)
+    sub = ', '.join(e['muscles'][:2]) + ' · ' + e['equipment']
+    r.add_widget(L(text=f"[b]{esc(e['name'])}[/b]\n[color=99a1a8][size=12sp]{esc(sub)}[/size][/color]", size_hint_y=1))
+    bl = best_label(e)
+    if bl:
+        r.add_widget(L(text=f'[color=b7ff2a][b]{esc(bl)}[/b][/color]', halign='right', size_hint=(None, 1), width=dp(84)))
+    r.bind(on_release=lambda *a: on_pick(e))
+    return r
+
+
+def pick_exercise(cb, current=None):
+    """Окно выбора упражнения: поиск, категории, недавние, личные рекорды рядом с названием."""
+    mv = ModalView(size_hint=(.96, .9), background='', background_color=(0, 0, 0, .6))
+    card = Card(padding=dp(14), spacing=dp(10), size_hint=(1, 1))
+    hd = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
+    hd.add_widget(L(text='[size=20sp][b]Выберите упражнение[/b][/size]', size_hint_y=1))
+    cl = IconBtn('close', 'tonal', size=40, pos_hint={'center_y': .5})
+    cl.bind(on_release=lambda *a: mv.dismiss())
+    hd.add_widget(cl)
+    card.add_widget(hd)
+    q = inp('Поиск: присед, грудь, штанга…')
+    card.add_widget(q)
+    rec = recent_exercises()
+    cats = ['Все'] + (['Недавние'] if rec else []) + EXCATS
+    st = {'cat': 'Все'}
+    chip_sv = ScrollView(size_hint_y=None, height=dp(42), do_scroll_y=False, bar_width=0)
+    chip_box = BoxLayout(size_hint_x=None, spacing=dp(8))
+    chip_box.bind(minimum_width=chip_box.setter('width'))
+    chips = {}
+    for c_ in cats:
+        b = Btn(text=c_, size_hint=(None, None), size=(dp(28) + dp(8.2) * len(c_), dp(38)), font_size=dp(13))
+        b.bind(on_release=lambda x, c_=c_: (st.update(cat=c_), q.__setattr__('text', ''), restyle(), fill()))
+        chips[c_] = b
+        chip_box.add_widget(b)
+    chip_sv.add_widget(chip_box)
+    card.add_widget(chip_sv)
+    lst = GridLayout(cols=1, spacing=dp(8), size_hint_y=None)
+    lst.bind(minimum_height=lst.setter('height'))
+    sv = ScrollView()
+    sv.add_widget(lst)
+    card.add_widget(sv)
+
+    def restyle():
+        for c_, b in chips.items():
+            b.bg, b.fg = (SEC, ONSEC) if c_ == st['cat'] else (CARD2, TX)
+
+    def pick(e):
+        mv.dismiss()
+        cb(e)
+
+    def fill(*a):
+        lst.clear_widgets()
+        qs = norm(q.text).split()
+        if qs:
+            hit = [e for e in EXLIST if all(t in norm(' '.join([e['name'], e['category'], e['equipment']] + e['muscles'])) for t in qs)]
+            hit.sort(key=lambda e: (not norm(e['name']).startswith(qs[0]), e['name']))
+            groups = [(f'Найдено: {len(hit)}', hit)]
+        elif st['cat'] == 'Все':
+            groups = ([('Недавние', rec)] if rec else []) + [(c_, [e for e in EXLIST if e['category'] == c_]) for c_ in EXCATS]
+        elif st['cat'] == 'Недавние':
+            groups = [('Недавние', rec)]
+        else:
+            groups = [(st['cat'], [e for e in EXLIST if e['category'] == st['cat']])]
+        n = 0
+        for title, exs in groups:
+            if not exs:
+                continue
+            lst.add_widget(L(text=f'[color=99a1a8][size=12sp][b]{esc(title.upper())}[/b][/size][/color]'))
+            for e in exs:
+                lst.add_widget(ex_row(e, bool(current) and e['id'] == current['id'], pick))
+                n += 1
+        if not n:
+            lst.add_widget(L(text='[color=99a1a8]Ничего не нашли. Попробуйте другое слово: название, мышцу или инвентарь.[/color]'))
+    trig = Clock.create_trigger(fill, .15)
+    q.bind(text=lambda *a: trig())
+    restyle()
+    fill()
+    mv.add_widget(card)
+    mv.open()
+
+
+class SetsEditor(BoxLayout):
+    """Подходы: строки вида «вес × повторы» (поля зависят от типа упражнения), расчёт лучшего подхода."""
+    LABELS = {'weight': ('Вес, кг', 'Повторы'), 'bodyweight': ('Доп. вес, кг', 'Повторы'),
+              'time': ('Секунды', None), 'distance': ('Дистанция, м', 'Время, мин')}
+
+    def __init__(self, **kw):
+        super().__init__(orientation='vertical', size_hint_y=None, spacing=dp(8), **kw)
+        self.bind(minimum_height=self.setter('height'))
+        self.kind, self.rows = 'weight', []
+        self.hdr = BoxLayout(size_hint_y=None, height=dp(18), spacing=dp(8), padding=[dp(34), 0, dp(44), 0])
+        self.ha, self.hb = L(text='', size_hint_y=1), L(text='', size_hint_y=1)
+        self.box = BoxLayout(orientation='vertical', size_hint_y=None, spacing=dp(8))
+        self.box.bind(minimum_height=self.box.setter('height'))
+        self.addb = Btn(text='Добавить подход', bg=CARD2, fg=TX, height=dp(44))
+        self.addb.bind(on_release=lambda *a: self.add_row(True))
+        self.sumL = L(text='')
+        for w in (self.hdr, self.box, self.addb, self.sumL):
+            self.add_widget(w)
+
+    def set_kind(self, kind):
+        self.kind, self.rows = kind, []
+        self.box.clear_widgets()
+        la, lb = self.LABELS[kind]
+        self.hdr.clear_widgets()
+        self.ha.text = f'[color=99a1a8][size=12sp]{la}[/size][/color]'
+        self.hdr.add_widget(self.ha)
+        if lb:
+            self.hb.text = f'[color=99a1a8][size=12sp]{lb}[/size][/color]'
+            self.hdr.add_widget(self.hb)
+        self.add_row()
+
+    def add_row(self, copy=False):
+        if len(self.rows) >= 20:
+            return App.get_running_app().toast('Не больше 20 подходов')
+        prev = self.rows[-1] if self.rows else None
+        two = self.LABELS[self.kind][1] is not None
+        r = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(8))
+        idx = L(text='', size_hint=(None, 1), width=dp(26))
+        a = inp('', prev['a'].text if copy and prev else '', True, pos_hint={'center_y': .5})
+        b = inp('', prev['b'].text if copy and prev and prev['b'] else '', True, pos_hint={'center_y': .5}) if two else None
+        rm = IconBtn('close', 'plain', size=36, pos_hint={'center_y': .5})
+        row = {'w': r, 'a': a, 'b': b, 'idx': idx}
+        rm.bind(on_release=lambda *x: self.remove(row))
+        for wgt in (idx, a, b, rm):
+            if wgt:
+                r.add_widget(wgt)
+        for t in (a, b):
+            if t:
+                t.bind(text=lambda *x: self.refresh())
+        self.rows.append(row)
+        self.box.add_widget(r)
+        self.refresh()
+
+    def remove(self, row):
+        if len(self.rows) > 1:
+            self.rows.remove(row)
+            self.box.remove_widget(row['w'])
+            self.refresh()
+
+    def values(self):
+        out = []
+        for r in self.rows:
+            a, b = fnum(r['a'].text), fnum(r['b'].text) if r['b'] else 0
+            if self.kind == 'weight' and a and b:
+                out.append({'kg': a, 'reps': int(b)})
+            elif self.kind == 'bodyweight' and b:
+                out.append({'kg': a, 'reps': int(b)})
+            elif self.kind == 'time' and a:
+                out.append({'sec': int(a)})
+            elif self.kind == 'distance' and a:
+                out.append({'m': int(a), 'sec': int(b * 60)} if b else {'m': int(a)})
+        return out
+
+    def refresh(self):
+        for i, r in enumerate(self.rows, 1):
+            r['idx'].text = f'[color=99a1a8][b]{i}[/b][/color]'
+        self.sumL.text = summarize(self.kind, self.values())
+
+
 def v_compose(kind):
     app = App.get_running_app()
     form = kind == 'form'
-    c = Card()
-    c.add_widget(head('Покажите результат', 'Актуальная форма', 'Фото или короткое видео') if form
-                 else head('Фиксируем победы', 'Добавить тренировку', 'Поделитесь работой, команда поддержит'))
+    st = {'ex': None}
     chosen = {'p': None, 'k': None}
-    st = L(text='[color=99a1a8]Фото или видео из галереи (видео до 20 МБ)[/color]')
+    cards = []
+    ed = SetsEditor()
+    if not form:
+        ca = Card()
+        ca.add_widget(head('Фиксируем победы', 'Новая тренировка', 'Выберите упражнение и впишите подходы'))
+        tile = ExRow(height=dp(68))
+        tile.add_widget(Icon(name='barbell', size_hint=(None, None), size=(dp(30), dp(30)), pos_hint={'center_y': .5}, color=ACC))
+        tl = L(text='', size_hint_y=1)
+        tile.add_widget(tl)
+
+        def show():
+            e = st['ex']
+            tile.sel = bool(e)
+            tl.text = (f"[b]{esc(e['name'])}[/b]\n[color=99a1a8][size=12sp]{esc(', '.join(e['muscles'][:2]))} · {esc(e['equipment'])} · {esc(EXKINDS.get(e['kind'], ''))}[/size][/color]"
+                       if e else f"[b]Выбрать упражнение[/b]\n[color=99a1a8][size=12sp]Из списка: {len(EXLIST)} упражнений[/size][/color]")
+
+        def choose(e):
+            prev = st['ex']
+            st['ex'] = e
+            show()
+            if not ed.parent:
+                ca.add_widget(ed)
+            if not prev or prev['kind'] != e['kind']:
+                ed.set_kind(e['kind'])
+        tile.bind(on_release=lambda *a: pick_exercise(choose, st['ex']))
+        show()
+        ca.add_widget(tile)
+        rec = recent_exercises()
+        if rec:
+            ca.add_widget(L(text='[color=99a1a8][size=12sp]Недавние: нажмите, чтобы выбрать сразу[/size][/color]'))
+            rsv = ScrollView(size_hint_y=None, height=dp(42), do_scroll_y=False, bar_width=0)
+            rbox = BoxLayout(size_hint_x=None, spacing=dp(8))
+            rbox.bind(minimum_width=rbox.setter('width'))
+            for e in rec:
+                b = Btn(text=e['name'], bg=CARD2, fg=TX, size_hint=(None, None), font_size=dp(13),
+                        size=(dp(28) + dp(8.2) * len(e['name']), dp(38)))
+                b.bind(on_release=lambda x, e=e: choose(e))
+                rbox.add_widget(b)
+            rsv.add_widget(rbox)
+            ca.add_widget(rsv)
+        cards.append(ca)
+    c = Card()
+    if form:
+        c.add_widget(head('Покажите результат', 'Актуальная форма', 'Фото или короткое видео'))
+    else:
+        c.add_widget(L(text='[size=16sp][b]Фото или видео (по желанию)[/b][/size]'))
+    mst = L(text='[color=99a1a8]Фото или видео из галереи (видео до 20 МБ)[/color]')
     prev = Photo(fit='contain', size_hint_y=None, height=0)
 
     def picked(p, k):
         chosen.update(p=p, k=k)
-        st.text = '[color=b7ff2a]Выбрано: ' + ('фото' if k == 'image' else 'видео') + '[/color]'
+        mst.text = '[color=b7ff2a]Выбрано: ' + ('фото' if k == 'image' else 'видео') + '[/color]'
         prev.height = dp(200) if k == 'image' else 0
         prev.set(p if k == 'image' else '')
-    row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(8))
+    mrow = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(8))
     for k, t in (('image', 'Фото'), ('video', 'Видео')):
         gb = Btn(text=t + ' из галереи', bg=CARD2, fg=TX)
         gb.bind(on_release=lambda x, k=k: pick(lambda p, k=k: picked(p, k), k))
-        row.add_widget(gb)
-    c.add_widget(row)
-    c.add_widget(st)
+        mrow.add_widget(gb)
+    c.add_widget(mrow)
+    c.add_widget(mst)
     c.add_widget(prev)
-    f = {}
-    spec = [('note', 'Подпись')] if form else [('ex', 'Упражнение'), ('kg', 'Вес, кг'), ('reps', 'Повторы'), ('sets', 'Подходы'), ('note', 'Подпись')]
-    for k, t in spec:
-        f[k] = inp(t, num=k in ('kg', 'reps', 'sets'))
-        c.add_widget(f[k])
+    note = inp('Подпись')
+    c.add_widget(note)
     go = Btn(text='Опубликовать')
 
     def submit(*a):
         if form and not chosen['p']:
             return app.toast('Выберите фото или видео')
-        if not form and not f['ex'].text.strip():
-            return app.toast('Укажите упражнение')
+        sets = []
+        if not form:
+            if not st['ex']:
+                return app.toast('Выберите упражнение из списка')
+            sets = ed.values()
+            if not sets:
+                return app.toast('Впишите хотя бы один подход')
         go.disabled, go.text = True, 'Публикуем…'
-        n = lambda k: float((f[k].text or '0').replace(',', '.'))
 
         def run():
-            row = {'user_id': D.uid, 'note' if not form else 'caption': f['note'].text.strip() or None}
+            row = {'user_id': D.uid, 'note' if not form else 'caption': note.text.strip() or None}
             if chosen['p']:
                 row['media_path'], row['media_type'], mw, mh = upload(chosen['p'], chosen['k'])
                 if mw:
                     row['media_w'], row['media_h'] = mw, mh
             if not form:
-                row.update(ex=f['ex'].text.strip(), kg=n('kg'), reps=int(n('reps')), sets=int(n('sets')))
+                e = st['ex']
+                kg, reps = summary_cols(e['kind'], sets)
+                row.update(ex=e['name'], exercise_id=e['id'], sets_data=sets, kg=kg, reps=reps, sets=len(sets))
             tbl = '/rest/v1/form_posts' if form else '/rest/v1/posts'
-            try:
-                rq('POST', tbl, json=row, headers={'Prefer': 'return=minimal'})
-            except Exception as e:
-                if 'media_w' not in str(e) and 'media_h' not in str(e):
-                    raise
-                row.pop('media_w', None)   # в базе ещё нет колонок из schema_v4.sql
-                row.pop('media_h', None)
-                rq('POST', tbl, json=row, headers={'Prefer': 'return=minimal'})
+            for attempt in range(2):
+                try:
+                    rq('POST', tbl, json=row, headers={'Prefer': 'return=minimal'})
+                    break
+                except Exception as e_:
+                    # в базе ещё нет новых колонок (schema_v4.sql, schema_v6.sql): публикуем без них
+                    miss = [col for col in ('media_w', 'media_h', 'exercise_id', 'sets_data') if col in str(e_) and col in row]
+                    if not miss or attempt:
+                        raise
+                    for col in miss:
+                        row.pop(col)
 
         def fin(_):
             app.load_all(first=False)
             app.go('user' if form else 'feed', D.uid if form else None, root=True)
+
         def reset(*a):
             go.disabled, go.text = False, 'Опубликовать'
 
@@ -1497,7 +1954,8 @@ def v_compose(kind):
         Clock.schedule_once(reset, 60)
     go.bind(on_release=submit)
     c.add_widget(go)
-    return scroll([c])
+    cards.append(c)
+    return scroll(cards)
 
 
 def user_row(u):
@@ -1570,10 +2028,9 @@ MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май'
 def heat_card(u):
     """Календарь тренировок: месяц с числами, дни с тренировками подсвечены, можно листать месяцы."""
     counts = {}
-    for w in D.PO:
-        if w['user_id'] == u:
-            d = w['created_at'][:10]
-            counts[d] = counts.get(d, 0) + 1
+    for w in D.byuser.get(u, []):
+        d = w['created_at'][:10]
+        counts[d] = counts.get(d, 0) + 1
     today = dt.date.today()
     st = {'y': today.year, 'm': today.month}
     c = Card()
@@ -1624,7 +2081,7 @@ def heat_card(u):
 
 def toggle_like(w, btn):
     pid = w['id']
-    if any(x['post_id'] == pid and x['user_id'] == D.uid for x in D.LK):
+    if D.uid in D.likes.get(pid, []):
         D.LK = [x for x in D.LK if not (x['post_id'] == pid and x['user_id'] == D.uid)]
         fn = lambda: rq('DELETE', f'/rest/v1/likes?post_id=eq.{pid}&user_id=eq.{D.uid}')
         on = False
@@ -1632,12 +2089,14 @@ def toggle_like(w, btn):
         D.LK.append({'post_id': pid, 'user_id': D.uid, 'created_at': ''})
         fn = lambda: rq('POST', '/rest/v1/likes', json={'post_id': pid, 'user_id': D.uid}, headers={'Prefer': 'return=minimal'})
         on = True
-    btn.set(on, sum(1 for x in D.LK if x['post_id'] == pid))
+    reindex()
+    btn.set(on, len(D.likes.get(pid, [])))
     bg(fn)
 
 
 def del_comment(cid):
     D.CM = [x for x in D.CM if x['id'] != cid]
+    reindex()
     App.get_running_app().render()
     bg(lambda: rq('DELETE', f'/rest/v1/comments?id=eq.{cid}'))
 
@@ -1650,7 +2109,7 @@ def v_comments(pid):
     gl.bind(minimum_height=gl.setter('height'))
     if w:
         gl.add_widget(post_card(w, cm=False))
-    cms = sorted((x for x in D.CM if x['post_id'] == pid), key=lambda x: x['created_at'])
+    cms = D.cmts.get(pid, [])
     gl.add_widget(L(text=f'[size=18sp][b]Комментарии[/b][/size]  [color=99a1a8]{len(cms)}[/color]'))
     for cmt in cms:
         c = Card()
@@ -1689,6 +2148,12 @@ def v_comments(pid):
 
 
 def notes():
+    if D._notes_rev != D.rev:   # пересчитывается только после изменения данных
+        D._notes, D._notes_rev = _notes_build(), D.rev
+    return D._notes
+
+
+def _notes_build():
     mine = {w['id']: w for w in D.PO if w['user_id'] == D.uid}
     out = []
     for w in D.PO:
@@ -1885,7 +2350,7 @@ class IronApp(App):
 
     def on_start(self):
         load_seen()
-        Clock.schedule_interval(lambda dt_: D.uid and self.load_all(silent=True), 60)
+        Clock.schedule_interval(lambda dt_: self.poll(), 60)
         Clock.schedule_interval(self._beat, 20)
         sess, cache = read_json(sess_file()), read_json(cache_file())
         if sess and sess.get('rt') and sess.get('uid') and cache and cache.get('uid') == sess['uid']:
@@ -1893,6 +2358,7 @@ class IronApp(App):
             D.rt, D.uid = sess['rt'], sess['uid']
             D.P, D.FO, D.PO, D.FM = cache['P'], cache['FO'], cache['PO'], cache['FM']
             D.LK, D.CM = cache.get('LK', []), cache.get('CM', [])
+            reindex()
             D.known, D.known_init = {w['id'] for w in D.PO}, True
             self.go('feed', root=True)
             self.start_push()
@@ -2014,14 +2480,6 @@ class IronApp(App):
                 self.start_service()
         self._register_push(done)
 
-    def check_push(self):
-        """Кнопка «Проверить push»: показывает, на каком шаге всё останавливается."""
-        def done(tok, note):
-            self.push_note = note
-            notice('Push подключён: токен получен и сохранён на сервере. Уведомления будут приходить и при закрытом приложении.'
-                   if tok and note == 'ok' else note)
-        self._register_push(done)
-
     def start_service(self):
         try:
             from android import AndroidService
@@ -2093,6 +2551,29 @@ class IronApp(App):
         except Exception:
             pass
 
+    _sig = None
+
+    def poll(self):
+        """Раз в минуту спрашивает у сервера только время последних записей; всё загружает лишь при изменениях."""
+        if not D.uid or self.paused or D.busy > 0:
+            return
+
+        def f():
+            def last(t):
+                try:
+                    r = rq('GET', f'/rest/v1/{t}?select=created_at&order=created_at.desc&limit=1')
+                    return r[0]['created_at'] if r else ''
+                except Exception:
+                    return '?'
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                return tuple(pool.map(last, ('posts', 'likes', 'comments', 'follows')))
+
+        def ok(sig):
+            if sig != self._sig:
+                self._sig = sig
+                self.load_all(silent=True)
+        bg(f, ok, quiet=True)
+
     def on_pause(self):
         self.paused = True
         self._beat()
@@ -2119,9 +2600,9 @@ class IronApp(App):
             try:
                 with ThreadPoolExecutor(max_workers=6) as pool:
                     fs = [pool.submit(q, 'profiles'), pool.submit(q, 'follows'),
-                          pool.submit(q, 'posts', '&order=created_at.desc&limit=200'),
+                          pool.submit(q, 'posts', '&order=created_at.desc&limit=120'),
                           pool.submit(q, 'form_posts', '&order=created_at.desc&limit=200'),
-                          pool.submit(opt, 'likes', '&limit=3000'), pool.submit(opt, 'comments', '&order=created_at.asc&limit=2000')]
+                          pool.submit(opt, 'likes', '&order=created_at.desc&limit=1500'), pool.submit(opt, 'comments', '&order=created_at.desc&limit=800')]
                     return tuple(x.result() for x in fs)
             except Exception:
                 D.loading = False
@@ -2134,6 +2615,7 @@ class IronApp(App):
             D.loading = False
             D.P = {p['id']: p for p in r[0]}
             D.FO, D.PO, D.FM, D.LK, D.CM = r[1], r[2], r[3], r[4], r[5]
+            reindex()
             new = [w for w in D.PO if w['user_id'] != D.uid and is_f(w['user_id']) and w['id'] not in D.known]
             if D.known_init and new:
                 if len(new) == 1:
@@ -2193,6 +2675,7 @@ class IronApp(App):
                 pass
         D.tok = D.rt = D.uid = None
         D.P, D.FO, D.PO, D.FM, D.LK, D.CM = {}, [], [], [], [], []
+        reindex()
         D.known, D.known_init = set(), False
         self.q = ''
         self.go('auth', root=True)
